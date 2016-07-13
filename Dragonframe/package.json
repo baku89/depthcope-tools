@@ -1,0 +1,17 @@
+{
+  "name": "dragonframe-integration",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "argv": "0.0.2",
+    "node-osc": "^2.0.3",
+    "osc": "^2.1.0",
+    "yargs": "^4.8.0"
+  }
+}
