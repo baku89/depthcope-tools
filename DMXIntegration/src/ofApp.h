@@ -1,7 +1,12 @@
 #pragma once
 
 #include "ofMain.h"
-#include "ofxKinect.h"
+#include "ofxOsc.h"
+#include "ofxDatGui.h"
+
+#define DF_PORT			1234
+#define TO_C4D_PORT		1300
+#define FROM_C4D_PORT	1301
 
 class ofApp : public ofBaseApp{
 
@@ -22,18 +27,20 @@ public:
 	void dragEvent(ofDragInfo dragInfo);
 	void gotMessage(ofMessage msg);
 	
-	ofxKinect	kinect;
-	ofImage		depthImage;
+	ofxOscReceiver	dfReceiver, c4dReceiver;
+	ofxOscSender	c4dSender;
 	
-	ofPlanePrimitive plane;
-	ofSpherePrimitive sphere;
+	stringstream	ss;
 	
-	ofShader		shader;
+	ofxDatGui*		gui;
 	
-	ofEasyCam		camera;
 	
-	ofLight			light;
-	ofMaterial		material;
+	// value
+	int				position;
+	float			rotation, fillLight, limLight;
+	
+	
+
 	
 	
 };

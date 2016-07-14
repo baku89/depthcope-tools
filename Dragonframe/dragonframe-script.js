@@ -16,19 +16,15 @@ params.forEach(function(param) {
 
 // parse
 var command = params[3];
-var frame = params[4];
+var frame = parseInt(params[4]);
 
-if (command == 'POSITION') {
 
-	var client = new osc.Client('127.0.0.1', 1234);
-	client.send('/dragonframe/position', 200, function() {
-		client.kill();
-	});
+var client = new osc.Client('127.0.0.1', 1234);
+client.send('/dragonframe/' + command.toLowerCase(), frame, function() {
+	client.kill();
+});
 
-	fs.appendFile(__dirname + '/log.txt', content + '\n');
-
-	
-}
+fs.appendFile(__dirname + '/log.txt', content + '\n');
 
 function getDateTime() {
 

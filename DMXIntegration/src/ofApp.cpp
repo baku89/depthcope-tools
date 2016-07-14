@@ -3,88 +3,66 @@
 //--------------------------------------------------------------
 void ofApp::setup(){
 	
-	kinect.init();
-	kinect.open();
+	ofSetWindowTitle("TECHNE Interface");
+	ofSetWindowShape(320, 320);
 	
-	plane.set(640, 480);
-//	plane.setPosition(320, 240, 0);
-	plane.setResolution(100, 100);
+	dfReceiver.setup(DF_PORT);
+	c4dReceiver.setup(FROM_C4D_PORT);
+	c4dSender.setup("localhost", TO_C4D_PORT);
 	
-	sphere.set(300, 48);
+	gui = new ofxDatGui(ofxDatGuiAnchor::TOP_LEFT);
 	
-	shader.load("shader");
+	gui->addSlider("position", 0, 500)->bind(position);
 	
-	ofEnableNormalizedTexCoords();
-	
-	// initialize cam
-	camera.setPosition(0, 0, -500);
-	camera.lookAt(ofVec3f());
-	camera.setFov(70);
-	
-	ofSetSmoothLighting(true);
-	
-	material.setShininess(120);
-	material.setSpecularColor(ofColor(255, 255, 255, 255));
-	
-	light.setDiffuseColor(ofFloatColor(1, 1, 1));
-	light.setSpecularColor(ofFloatColor(1, 1, 1));
-	light.setPosition(-300, 300, -300);
-	
-	
-	
-
-
+	gui->addBreak()->setHeight(10.0f);
+	gui->addSlider("rotation", 0, PI * 2)->bind(rotation);
+	gui->addSlider("fill light", 0, 1)->bind(fillLight);
+	gui->addSlider("lim light", 0, 1)->bind(limLight);
 }
 
 //--------------------------------------------------------------
 void ofApp::update(){
 	
-	kinect.update();
+	while (dfReceiver.hasWaitingMessages()) {
+		ofxOscMessage m;
+		dfReceiver.getNextMessage(&m);
+		
+		string address = m.getAddress();
+		int value = m.getArgAsInt(0);
+//		ofLogNotice() << "address:" << address << " value:" << value;
+		
+		if (address == "/dragonframe/position") {
+			position = value;
+			
+			ofxOscMessage sm;
+			sm.setAddress("/position");
+			sm.addIntArg(position);
+			c4dSender.sendMessage(sm);
+		}
+	}
+	
+	while (c4dReceiver.hasWaitingMessages()) {
+		ofxOscMessage m;
+		c4dReceiver.getNextMessage(&m);
+		
+		/*
+		int p = m.getArgAsInt(0);
+		if (position != p) {
+			ofSystemAlertDialog("Error");
+		}
+		*/
+		
+		rotation = m.getArgAsFloat(1);
+		fillLight = m.getArgAsFloat(2);
+		limLight = m.getArgAsFloat(3);
+	}
 
 }
 
 //--------------------------------------------------------------
 void ofApp::draw(){
 	
-//	kinect.drawDepth(0, 0, kinect.width, kinect.height);
-//	kinect.getDepthTexture();
-	
 	ofBackground(0);
-	
-	
-	
-	ofEnableDepthTest();
-	camera.begin();
-	{
-		// 1. draw util
-		ofDrawAxis(400);
-		ofDrawGrid(80.0f, 6);
-		light.draw();
-		
-		// 2. draw kinect
-//		ofEnableLighting();
-//		light.enable();
-		shader.begin();
-		
-		shader.setUniform1f("time", ofGetElapsedTimef());
-		shader.setUniformTexture("depth", kinect.getDepthTexture(), 0);
-		{
-			
-//			kinect.getDepthTexture().bind();
-			{
-				plane.draw();
-			}
-//			kinect.getDepthTexture().unbind();
-			
-		}
-		shader.end();
-//		light.disable();
-//		ofDisableLighting();
-		
-	}
-	camera.end();
-	ofDisableDepthTest();
-	
 	
 
 }
