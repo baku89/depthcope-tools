@@ -1,4 +1,3 @@
-ofxFX
-ofxGrabCam
+ofxDatGui
 ofxMultiKinectV2
 ofxTurboJpeg

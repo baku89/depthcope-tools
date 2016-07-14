@@ -2,6 +2,14 @@
 
 #include "ofMain.h"
 #include "ofxMultiKinectV2.h"
+#include "ofxDatGui.h"
+
+#define DEPTH_WIDTH     512
+#define DEPTH_HEIGHT    424
+#define STEP            1
+
+#define GUI_WIDTH       320
+
 
 class ofApp : public ofBaseApp{
 
@@ -24,10 +32,20 @@ public:
 	
 	ofxMultiKinectV2	kinect;
 	ofTexture			depthTex, irTex;
+    
+    ofVec2f             center, fov;
+    
+    ofFloatPixels       dispPixels;
+    ofFloatImage        dispImage;
+    ofFbo               dispFbo;
+    
+    int step = STEP;
 	
 	
 	ofPlanePrimitive plane;
 	ofSpherePrimitive sphere;
+    
+    ofMesh          mesh;
 	
 	ofShader		shader;
 	
@@ -35,6 +53,14 @@ public:
 	
 	ofLight			light;
 	ofMaterial		material;
-	
-	
+    
+    ofxDatGui*      gui;
+    
+
+    
+    
+    // parameters
+    float near = 50, far = 500; // cm
+    
+    
 };
