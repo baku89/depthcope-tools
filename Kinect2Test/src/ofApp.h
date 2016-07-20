@@ -3,6 +3,7 @@
 #include "ofMain.h"
 #include "ofxMultiKinectV2.h"
 #include "ofxDatGui.h"
+#include "ofxImageSequenceRecorder.h"
 
 #define DEPTH_WIDTH     512
 #define DEPTH_HEIGHT    424
@@ -17,6 +18,7 @@ public:
 	void setup();
 	void update();
 	void draw();
+    void exit();
 
 	void keyPressed(int key);
 	void keyReleased(int key);
@@ -37,24 +39,24 @@ public:
     
     ofFloatPixels       dispPixels;
     ofFloatImage        dispImage;
-    ofFbo               dispFbo;
     
     int step = STEP;
 	
 	
-	ofPlanePrimitive plane;
-	ofSpherePrimitive sphere;
-    
-    ofMesh          mesh;
-	
-	ofShader		shader;
-	
-	ofEasyCam		camera;
-	
-	ofLight			light;
-	ofMaterial		material;
+//	ofPlanePrimitive plane;
+//	ofSpherePrimitive sphere;
+//    ofMesh          mesh;
+//	ofShader		shader;
+
+//	ofEasyCam		camera;
+//	ofLight			light;
+//	ofMaterial		material;
     
     ofxDatGui*      gui;
+    
+    bool            isRecording = false;
+    
+    ofxImageSequenceRecorder recorder;
     
 
     
