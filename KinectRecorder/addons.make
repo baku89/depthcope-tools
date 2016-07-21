@@ -1,0 +1,4 @@
+ofxDatGui
+ofxImageSequenceRecorder
+ofxMultiKinectV2
+ofxTurboJpeg
