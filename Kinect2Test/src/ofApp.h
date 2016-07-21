@@ -5,11 +5,9 @@
 #include "ofxDatGui.h"
 #include "ofxImageSequenceRecorder.h"
 
-#define DEPTH_WIDTH     512
-#define DEPTH_HEIGHT    424
-#define STEP            1
+#include "PostProcessing.h"
 
-#define GUI_WIDTH       320
+#include "Config.h"
 
 
 class ofApp : public ofBaseApp{
@@ -19,6 +17,11 @@ public:
 	void update();
 	void draw();
     void exit();
+    
+    void initScene();
+    void drawScene();
+    
+    void doPostProcessing();
 
 	void keyPressed(int key);
 	void keyReleased(int key);
@@ -31,38 +34,40 @@ public:
 	void windowResized(int w, int h);
 	void dragEvent(ofDragInfo dragInfo);
 	void gotMessage(ofMessage msg);
-	
+    
+    // mesh
+    ofEasyCam           camera;
+    ofShader            pointShader;
+    ofMesh              mesh;
+    
+    ofShader            smoothShader;
+    
+	// kinect
 	ofxMultiKinectV2	kinect;
-	ofTexture			depthTex, irTex;
     
-    ofVec2f             center, fov;
+    string              dirname;
     
-    ofFloatPixels       dispPixels;
-    ofFloatImage        dispImage;
     
-    int step = STEP;
-	
-	
-//	ofPlanePrimitive plane;
-//	ofSpherePrimitive sphere;
-//    ofMesh          mesh;
-//	ofShader		shader;
-
-//	ofEasyCam		camera;
-//	ofLight			light;
-//	ofMaterial		material;
-    
-    ofxDatGui*      gui;
-    
-    bool            isRecording = false;
+    ofFloatPixels       depthPixels;
+    ofFloatImage        depthImage;
+    ofImage             colorImage;
     
     ofxImageSequenceRecorder recorder;
     
-
+    PostProcessing      postProcessing;
+    
+    
+    
+    stringstream        ss;
+    bool                isRecording = false;
+    bool                willStopRecording = false;
+    string              takeName;
     
     
     // parameters
+    ofxDatGui*          gui;
     float near = 50, far = 500; // cm
+    ofVec2f             center, fov;
     
     
 };

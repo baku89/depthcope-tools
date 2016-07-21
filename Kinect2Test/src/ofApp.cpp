@@ -1,46 +1,22 @@
 #include "ofApp.h"
 
-#define DISP_SCALE 100
+#define depth_SCALE 1000
 
 //--------------------------------------------------------------
 void ofApp::setup(){
+    
+    ofSetWindowShape(1280, 1280);
 	
 	kinect.open(true, true, 0);
 	kinect.start();
     
-    dispPixels.allocate(DEPTH_WIDTH / step, DEPTH_HEIGHT / step, OF_IMAGE_COLOR);
-    dispImage.allocate(DEPTH_WIDTH / step, DEPTH_HEIGHT / step, OF_IMAGE_COLOR);
+    depthPixels.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, OF_IMAGE_COLOR_ALPHA);
+    depthImage.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, OF_IMAGE_COLOR_ALPHA);
     
     recorder.setPrefix(ofToDataPath("recording1/frame_"));
-    recorder.setFormat("png");
-                       
-	
-//	ofEnableNormalizedTexCoords();
-	
-    /*
-    plane.set(DEPTH_WIDTH, DEPTH_HEIGHT);
-    plane.setPosition(DEPTH, 240, 0);
-    plane.setResolution(DEPTH_WIDTH / step, DEPTH_HEIGHT / step);
-    sphere.set(300, 48);
-    shader.load("shader");
-    */
+    recorder.setFormat("exr");
     
-	// initialize cam
-    /*
-	camera.setPosition(0, 0, -500);
-	camera.lookAt(ofVec3f());
-	camera.setFov(70);
-	
-	ofSetSmoothLighting(true);
-	
-	material.setShininess(120);
-	material.setSpecularColor(ofColor(255, 255, 255, 255));
-	
-	light.setDiffuseColor(ofFloatColor(1, 1, 1));
-	light.setSpecularColor(ofFloatColor(1, 1, 1));
-	light.setPosition(-300, 300, -300);
-    */
-    
+    this->initScene();
     
     gui = new ofxDatGui(ofxDatGuiAnchor::TOP_LEFT);
     gui->addFRM();
@@ -48,9 +24,32 @@ void ofApp::setup(){
     
     gui->addSlider("near", 0, 800)->bind(near);
     gui->addSlider("far", 0, 800)->bind(far);
+}
+
+//--------------------------------------------------------------
+void ofApp::initScene() {
     
-
-
+    mesh.setMode(OF_PRIMITIVE_POINTS);
+    
+    int x, y;
+    int w = DEPTH_WIDTH;
+    int h = DEPTH_HEIGHT;
+    
+    for (y = 0; y < h; y++) {
+        for (x = 0; x < w; x++) {
+            mesh.addColor(ofColor(255));
+            mesh.addTexCoord(ofVec2f(x / (float)w, y / (float)h));
+            mesh.addVertex(ofVec3f(x - w / 2, y - h / 2, 0));
+        }
+    }
+    
+    // initalize camera
+    camera.setPosition(300, 300, 300);
+    camera.lookAt(ofVec3f());
+    camera.setFov(70);
+    
+    // init shader
+    pointShader.load("point");
 }
 
 //--------------------------------------------------------------
@@ -58,42 +57,57 @@ void ofApp::update(){
 	
 	kinect.update();
 	if (kinect.isFrameNew()) {
-		depthTex.loadData(kinect.getDepthPixelsRef());
         
-//        center.set(kinect.getCenter());
-//        fov.set(kinect.getFov());
+        fov.set(kinect.getFov());
         
-        /*
-        int w = DEPTH_WIDTH / step;
-        int h = DEPTH_HEIGHT / step;
+        colorImage.setFromPixels(kinect.getColorPixelsRef());
         
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                float dist = kinect.getDistanceAt(x * step, y * step);
+        int w = DEPTH_WIDTH;
+        int h = DEPTH_HEIGHT;
+        int x, y, offset;
+        float value;
+        
+        for (y = 0; y < h; y++) {
+            for (x = 0; x < w; x++) {
+                
+                float dist = kinect.getDistanceAt(x, y);
+                offset = (y * w + x) * 4;
+                
                 if(near < dist && dist < far) {
-                    ofVec3f pt = kinect.getWorldCoordinateAt(x * step, y * step, dist);
-                    dispPixels[(y * w + x) * 3    ] = ofMap(pt.x, -DISP_SCALE, DISP_SCALE, 0.0f, 1.0f, true);
-                    dispPixels[(y * w + x) * 3 + 1] = ofMap(pt.y, -DISP_SCALE, DISP_SCALE, 0.0f, 1.0f, true);
-                    dispPixels[(y * w + x) * 3 + 2] = ofMap(pt.z, -DISP_SCALE, DISP_SCALE, 0.0f, 1.0f, true);
+                    value = ofMap(dist, far, near, 0.0f, 1.0f, true);
+                    depthPixels[offset + 3] = 1.0f;
                 } else {
-                    dispPixels[(y * w + x) * 3    ] = 0.5f;
-                    dispPixels[(y * w + x) * 3 + 1] = 0.5f;
-                    dispPixels[(y * w + x) * 3 + 2] = 0.5f;
+                    value = 0.0f;
+                    depthPixels[offset + 3] = 0.0f;
+                    
+
                 }
+                depthPixels[offset    ] = value;
+                depthPixels[offset + 1] = value;
+                depthPixels[offset + 2] = value;
             }
         }
-        */
         
-        //dispImage.setFromPixels(dispPixels);
+        depthImage.setFromPixels(depthPixels);
+        
         
         if (isRecording) {
-//            recorder.addFrame(dispImage);
+            recorder.addFrame(depthPixels);
         }
-        
-        
-//        ofLogNotice() << depthTex.getWidth() << " " << depthTex.getHeight();
 	}
+    
+    if (willStopRecording && recorder.q.size() == 0) {
+        recorder.stopThread();
+        willStopRecording = false;
+        
+        doPostProcessing();
+    }
+}
 
+//--------------------------------------------------------------
+void ofApp::doPostProcessing() {
+    postProcessing.setup(dirname);
+    postProcessing.startThread();
 }
 
 //--------------------------------------------------------------
@@ -105,80 +119,61 @@ void ofApp::exit() {
 void ofApp::draw(){
     
     ofBackground(0);
-    ofSetColor(255);
     
+    // draw 3d
+    this->drawScene();
+    
+    
+    // draw 2d
     ofPushMatrix();
     ofTranslate(GUI_WIDTH, 0);
     {
-        
-        dispImage.draw(0, 0);
-        depthTex.draw(DEPTH_WIDTH, 0);
+        ofSetColor(255);
+        depthImage.draw(0, 0, DEPTH_WIDTH / 2, DEPTH_HEIGHT / 2);
+//        colorImage.draw(DEPTH_WIDTH, 0);
         
         if (isRecording) {
-            
             ofSetColor(255, 0, 0);
             ofDrawCircle(40, 40, 10);
+            ss.str("");
+            ss << "recording: "  << takeName << "_" << ofToString(recorder.counter, 6, '0');
+            ofDrawBitmapString(ss.str(), 50, 40);
+        } else if (willStopRecording) {
+            ofSetColor(255, 0, 255);
+            ofDrawCircle(40, 40, 10);
+            ofDrawBitmapString("saving...", 50, 40);
+        } else if (postProcessing.isThreadRunning()) {
+            ofSetColor(0, 255, 0);
+            ofDrawBitmapString("processing...", 50, 40);
+            ofDrawRectangle(0, 0, ofGetWidth() * postProcessing.progress, 10);
         }
         
     }
     ofPopMatrix();
+}
 
-//
-//	ofBackground(0);
-//    
-//    ofPushMatrix();
-//    
-//    ofTranslate(GUI_WIDTH, 0);
-//    
-////    dispImage.draw(0, 0);
-//    
-//    dispFbo.draw(0, 0);
+//--------------------------------------------------------------
+void ofApp::drawScene() {
     
-    /*
+    camera.begin();
     
-	ofEnableDepthTest();
-	camera.begin();
-	{
-		// 1. draw util
-		ofDrawAxis(400);
-		ofDrawGrid(80.0f, 6);
-		light.draw();
-		
-		// 2. draw kinect
-//		ofEnableLighting();
-//		light.enable();
-		
-		if (depthTex.isAllocated()) {
-        
-            
-			shader.begin();
-			shader.setUniform1f("time", ofGetElapsedTimef());
-            shader.setUniform2f("resolution", depthTex.getWidth(), depthTex.getHeight());
-//            shader.setUniform2f("center", center.x, center.y);
-//            shader.setUniform2f("fov", fov.x, fov.y);
-//			shader.setUniformTexture("depth", depthTex, 0);
-            shader.setUniformTexture("depth", dispImage.getTexture(), 0);
-            
-            plane.draw();
-            
-			shader.end();
-            
-		}
-//		light.disable();
-//		ofDisableLighting();
-		
-	}
-	camera.end();
-	ofDisableDepthTest();
-     */
+    ofDrawAxis(400);
+
+    ofSetColor(255);
     
-//    kinect.getDepthPixelsRef();
+    pointShader.begin();
+    pointShader.setUniform2f("resolution", DEPTH_WIDTH, DEPTH_HEIGHT);
+    pointShader.setUniform1f("near", near);
+    pointShader.setUniform1f("far", far);
+    pointShader.setUniform2f("fov", fov.x, fov.y);
+    pointShader.setUniformTexture("depth", depthImage, 0);
     
-//    depthTex.draw(0, 0);
+    mesh.draw();
     
+    pointShader.end();
     
-//    dispImage.setFromPixels(dispPixels);
-//    dispImage.draw(0, 0, DEPTH_WIDTH * 2, DEPTH_HEIGHT * 2);
+    camera.end();
+    
     
 }
 
@@ -187,18 +182,39 @@ void ofApp::keyPressed(int key){
     
     switch (key) {
         case 'r':
+            if (willStopRecording || postProcessing.isThreadRunning()) {
+                ofLogError() << "Cannot recording while saving previous frames";
+                break;
+            }
+            
             isRecording = !isRecording;
-            break;
-        case 't':
-            if (recorder.isThreadRunning()) {
-                recorder.stopThread();
-            } else {
+            if (isRecording) {
+                ss.str("");
+                ss << ofToString(ofGetYear(), 4, '0') << "-" << ofToString(ofGetMonth(), 2, '0') << "-" << ofToString(ofGetDay(), 2, '0') << "-"
+                << ofToString(ofGetHours(), 2, '0') << "-" << ofToString(ofGetMinutes(), 2, '0') << "-" << ofToString(ofGetSeconds(), 2, '0');
+                takeName = ss.str();
+                
+                ss.str("");
+                ss << SAVED_DIR << "/" << takeName;
+                dirname = ofToDataPath(ss.str());
+                
+                ss.str("");
+                ss << SAVED_DIR << "/" << takeName << "/" << takeName << "_";
+                string path = ofToDataPath(ss.str());
+                
+                recorder.setCounter(0);
+                recorder.setPrefix(path);
+                
+                ofLogNotice() << "TakeName:" << takeName;
+                
                 recorder.startThread();
+            } else {
+//                recorder.stopThread();
+                willStopRecording = true;
+                ofLogNotice() << "End Recording frames:" << recorder.counter;
             }
             break;
-            
     }
-
 }
 
 //--------------------------------------------------------------
