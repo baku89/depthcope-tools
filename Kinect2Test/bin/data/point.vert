@@ -13,7 +13,7 @@ void main()
 	vec4 color = texture2DRect(depth, gl_Vertex.xy + vec2(256.0, 212.0));
 
 	float d = (1.0 - color.r) * (far - near) + near;
-	opacity = color.a;
+	opacity = 1.0 - color.g;
 
 	
 

@@ -22,6 +22,8 @@ public:
     void drawScene();
     
     void doPostProcessing();
+	
+	string getTakeName();
 
 	void keyPressed(int key);
 	void keyReleased(int key);

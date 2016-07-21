@@ -5,5 +5,7 @@
 
 #define GUI_WIDTH       320
 
-#define SAVED_DIR       "saved"
-#define INPAINTED_DIR   "inpainted"
+#define SAVED_DIR       (string)"saved"
+
+#define RAW_NAME		(string)"raw"
+#define INPAINTED_NAME  (string)"inpainted"
