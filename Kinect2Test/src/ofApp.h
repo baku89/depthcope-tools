@@ -4,8 +4,10 @@
 #include "ofxMultiKinectV2.h"
 #include "ofxDatGui.h"
 #include "ofxImageSequenceRecorder.h"
+#include "ofxXmlSettings.h"
 
 #include "PostProcessing.h"
+#include "DepthFiller.h"
 
 #include "Config.h"
 
@@ -20,7 +22,10 @@ public:
     
     void initScene();
     void drawScene();
-    
+	
+	void loadGui();
+	void saveGui();
+	
     void doPostProcessing();
 	
 	string getTakeName();
@@ -42,22 +47,18 @@ public:
     ofShader            pointShader;
     ofMesh              mesh;
     
-    ofShader            smoothShader;
-    
+	ofShader            depthShader, filledShader;
+	
 	// kinect
 	ofxMultiKinectV2	kinect;
-    
-    string              dirname;
-    
-    
-    ofFloatPixels       depthPixels;
-    ofFloatImage        depthImage;
-    ofImage             colorImage;
-    
+	
+	DepthFiller			depthFiller;
+    ofFloatPixels       depthPixels, testPixels, testFilledPixels;
+    ofFloatImage        depthImage, testImage, testFilledImage;
+	
     ofxImageSequenceRecorder recorder;
     
     PostProcessing      postProcessing;
-    
     
     
     stringstream        ss;
@@ -68,8 +69,8 @@ public:
     
     // parameters
     ofxDatGui*          gui;
-    float near = 50, far = 500; // cm
-    ofVec2f             center, fov;
+    float				near, far; // cm
+    ofVec2f             fov;
     
     
 };

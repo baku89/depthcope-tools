@@ -1,4 +1,7 @@
+ofxCv
 ofxDatGui
 ofxImageSequenceRecorder
 ofxMultiKinectV2
+ofxOpenCv
 ofxTurboJpeg
+ofxXmlSettings

@@ -5,24 +5,21 @@
 //--------------------------------------------------------------
 void ofApp::setup(){
     
-    ofSetWindowShape(1280, 1280);
+    ofSetWindowShape(GUI_WIDTH + DEPTH_WIDTH * 3, 1280);
 	
 	kinect.open(true, true, 0);
 	kinect.start();
     
-    depthPixels.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, OF_IMAGE_COLOR);
+	depthPixels.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, OF_IMAGE_COLOR);
+	testPixels.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, OF_IMAGE_COLOR);
+	testFilledPixels.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, OF_IMAGE_COLOR);
     depthImage.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, OF_IMAGE_COLOR);
+	depthFiller.allocate(DEPTH_WIDTH, DEPTH_HEIGHT);
 	
     recorder.setFormat("exr");
     
     this->initScene();
-    
-    gui = new ofxDatGui(ofxDatGuiAnchor::TOP_LEFT);
-    gui->addFRM();
-    gui->addBreak()->setHeight(10.0f);
-    
-    gui->addSlider("near", 0, 800)->bind(near);
-    gui->addSlider("far", 0, 800)->bind(far);
+	this->loadGui();
 }
 
 //--------------------------------------------------------------
@@ -48,7 +45,41 @@ void ofApp::initScene() {
     camera.setFov(70);
     
     // init shader
+	depthShader.setupShaderFromFile(GL_FRAGMENT_SHADER, "depth.frag");
+	depthShader.linkProgram();
+	filledShader.setupShaderFromFile(GL_FRAGMENT_SHADER, "filled.frag");
+	filledShader.linkProgram();
     pointShader.load("point");
+}
+
+//--------------------------------------------------------------
+void ofApp::loadGui() {
+	gui = new ofxDatGui(ofxDatGuiAnchor::TOP_LEFT);
+	gui->addFRM();
+	gui->addBreak()->setHeight(10.0f);
+	
+	gui->addSlider("near", 0, 800)->bind(near);
+	gui->addSlider("far", 0, 800)->bind(far);
+	gui->addSlider("fill radius", 1, 15)->bind(postProcessing.radius);
+	gui->setTheme(new ofxDatGuiThemeMidnight());
+	
+	// load
+	ofxXmlSettings settings;
+	settings.loadFile("settings.xml");
+	
+	near = settings.getValue("near", 50.0);
+	far	 = settings.getValue("far", 500.0);
+	postProcessing.radius = settings.getValue("fillRadius", 3.0);
+}
+
+void ofApp::saveGui() {
+	
+	ofxXmlSettings settings;
+	settings.addValue("near", near);
+	settings.addValue("far", far);
+	settings.addValue("fillRadius", postProcessing.radius);
+	settings.saveFile("settings.xml");
+	
 }
 
 //--------------------------------------------------------------
@@ -58,8 +89,7 @@ void ofApp::update(){
 	if (kinect.isFrameNew()) {
         
         fov.set(kinect.getFov());
-        
-        colorImage.setFromPixels(kinect.getColorPixelsRef());
+		
         
         int w = DEPTH_WIDTH;
         int h = DEPTH_HEIGHT;
@@ -112,6 +142,7 @@ void ofApp::doPostProcessing() {
 
 //--------------------------------------------------------------
 void ofApp::exit() {
+	saveGui();
     recorder.waitForThread();
 }
 
@@ -128,10 +159,27 @@ void ofApp::draw(){
     ofPushMatrix();
     ofTranslate(GUI_WIDTH, 0);
     {
-        ofSetColor(255);
-        depthImage.draw(0, 0, DEPTH_WIDTH / 2, DEPTH_HEIGHT / 2);
-//        colorImage.draw(DEPTH_WIDTH, 0);
-        
+		ofSetColor(0);
+		ofDrawRectangle(0, 0, DEPTH_WIDTH * 3, DEPTH_HEIGHT);
+		
+		ofSetColor(255);
+		depthShader.begin();
+		{
+			depthImage.draw(0, 0);
+			
+			if (testImage.isAllocated()) {
+				testImage.draw(DEPTH_WIDTH, 0);
+			}
+		}
+		depthShader.end();
+		filledShader.begin();
+		{
+			if (testFilledImage.isAllocated()) {
+				testFilledImage.draw(DEPTH_WIDTH * 2, 0);
+			}
+		}
+		filledShader.end();
+		
         if (isRecording) {
             ofSetColor(255, 0, 0);
             ofDrawCircle(40, 40, 10);
@@ -154,25 +202,31 @@ void ofApp::draw(){
 
 //--------------------------------------------------------------
 void ofApp::drawScene() {
-    
-    camera.begin();
-    
-    ofDrawAxis(400);
+	
+	ofPushMatrix();
+	{
+		ofTranslate(GUI_WIDTH, DEPTH_HEIGHT);
+		
+		camera.begin();
+		
+		ofDrawAxis(400);
 
-    ofSetColor(255);
-    
-    pointShader.begin();
-    pointShader.setUniform2f("resolution", DEPTH_WIDTH, DEPTH_HEIGHT);
-    pointShader.setUniform1f("near", near);
-    pointShader.setUniform1f("far", far);
-    pointShader.setUniform2f("fov", fov.x, fov.y);
-    pointShader.setUniformTexture("depth", depthImage, 0);
-    
-    mesh.draw();
-    
-    pointShader.end();
-    
-    camera.end();
+		ofSetColor(255);
+		
+		pointShader.begin();
+		pointShader.setUniform2f("resolution", DEPTH_WIDTH, DEPTH_HEIGHT);
+		pointShader.setUniform1f("near", near);
+		pointShader.setUniform1f("far", far);
+		pointShader.setUniform2f("fov", fov.x, fov.y);
+		pointShader.setUniformTexture("depth", depthImage, 0);
+		
+		mesh.draw();
+		
+		pointShader.end();
+		
+		camera.end();
+	}
+	ofPopMatrix();
     
     
 }
@@ -203,6 +257,16 @@ void ofApp::keyPressed(int key){
                 ofLogNotice() << "End Recording frames:" << recorder.counter;
             }
             break;
+			
+		case 't':
+			// test shooting
+			testPixels.setFromPixels(depthPixels.getData(), DEPTH_WIDTH, DEPTH_HEIGHT, 3);
+			depthFiller.radius = postProcessing.radius;
+			testFilledPixels = depthFiller.inpaint(testPixels);
+			
+			testImage.setFromPixels(testPixels);
+			testFilledImage.setFromPixels(testFilledPixels);
+			break;
     }
 }
 
@@ -214,54 +278,4 @@ string ofApp::getTakeName() {
 		+ ofToString(ofGetHours(), 2, '0') + "-"
 		+ ofToString(ofGetMinutes(), 2, '0') + "-"
 		+ ofToString(ofGetSeconds(), 2, '0');
-}
-
-//--------------------------------------------------------------
-void ofApp::keyReleased(int key){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::mouseMoved(int x, int y ){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::mouseDragged(int x, int y, int button){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::mousePressed(int x, int y, int button){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::mouseReleased(int x, int y, int button){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::mouseEntered(int x, int y){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::mouseExited(int x, int y){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::windowResized(int w, int h){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::gotMessage(ofMessage msg){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::dragEvent(ofDragInfo dragInfo){ 
-
-}
+} 
