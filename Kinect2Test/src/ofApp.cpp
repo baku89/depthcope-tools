@@ -43,7 +43,7 @@ void ofApp::initScene() {
     }
     
     // initalize camera
-    camera.setPosition(300, 300, 300);
+    camera.setPosition(200, 200, -300);
     camera.lookAt(ofVec3f());
     camera.setFov(70);
     

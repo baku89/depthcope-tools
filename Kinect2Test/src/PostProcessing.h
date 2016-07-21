@@ -66,6 +66,10 @@ public:
 	
     // https://github.com/mazbox/ofxKinectInpainter/blob/master/src/ofxKinectInpainter.h
     void processImage(ofFile file) {
+		
+		// R channel represents raw Kinect depth
+		// G channel: invalid detph
+		// G channel: hole-filled depth
         
         // load image
         ofLoadImage(srcImage, file.getAbsolutePath());
@@ -74,11 +78,7 @@ public:
         int w = DEPTH_WIDTH;
         int h = DEPTH_HEIGHT;
 
-		
-		
-        
         int x, y, offset;
-		int numChannels = 3;
         
         // copy to cv context
         for (y = 0; y < h; y++) {
@@ -88,12 +88,10 @@ public:
                 maskPixels[offset] = srcPixels[offset * 3 + 1] > 0.5 ? 255 : 0;
             }
         }
-        
         depthImage = ofxCv::toCv(depthPixels);
         maskImage   = ofxCv::toCv(maskPixels);
         
         cv::inpaint(depthImage, maskImage, depthImage, 3, cv::INPAINT_NS);
-		
         ofxCv::toOf(depthImage, inpaintedPixels);
 		
 		// composite with original image
