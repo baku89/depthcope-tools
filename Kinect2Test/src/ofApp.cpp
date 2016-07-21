@@ -63,6 +63,7 @@ void ofApp::update(){
 //        center.set(kinect.getCenter());
 //        fov.set(kinect.getFov());
         
+        /*
         int w = DEPTH_WIDTH / step;
         int h = DEPTH_HEIGHT / step;
         
@@ -81,11 +82,12 @@ void ofApp::update(){
                 }
             }
         }
+        */
         
-        dispImage.setFromPixels(dispPixels);
+        //dispImage.setFromPixels(dispPixels);
         
         if (isRecording) {
-            recorder.addFrame(dispImage);
+//            recorder.addFrame(dispImage);
         }
         
         
@@ -107,16 +109,18 @@ void ofApp::draw(){
     
     ofPushMatrix();
     ofTranslate(GUI_WIDTH, 0);
-    
-    dispImage.draw(0, 0);
-    depthTex.draw(DEPTH_WIDTH, 0);
-    
-    if (isRecording) {
+    {
         
-        ofSetColor(255, 0, 0);
-        ofDrawCircle(40, 40, 10);
+        dispImage.draw(0, 0);
+        depthTex.draw(DEPTH_WIDTH, 0);
+        
+        if (isRecording) {
+            
+            ofSetColor(255, 0, 0);
+            ofDrawCircle(40, 40, 10);
+        }
+        
     }
-    
     ofPopMatrix();
 
 //
