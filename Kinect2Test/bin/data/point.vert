@@ -1,25 +1,24 @@
 #version 120
 
-uniform vec2 resolution;
 uniform sampler2DRect depth;
 uniform float near;
 uniform float far;
-uniform vec2 fov;
+uniform vec2 focus;
 
 varying float opacity;
+varying float luminance;
 
-void main()
-{
+void main() {
+	
 	vec4 color = texture2DRect(depth, gl_Vertex.xy + vec2(256.0, 212.0));
 
-	float d = (1.0 - color.r) * (far - near) + near;
+	luminance = color.r;
+	float d = (1.0 - luminance) * (far - near) + near;
 	opacity = 1.0 - color.g;
 
-	
-
 	vec4 position = vec4(
-			gl_Vertex.x * d / fov.x,
-			-gl_Vertex.y * d / fov.y,
+			gl_Vertex.x * d / focus.x,
+			-gl_Vertex.y * d / focus.y,
 			d,
 			1.0
 		);

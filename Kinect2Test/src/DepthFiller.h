@@ -57,8 +57,12 @@ public:
 			for (x = 0; x < w; x++) {
 				offset = y * w + x;
 				if (maskPixels[offset] > 0.5) {
+					srcPixels[offset * 3    ] = inpaintedPixels[offset] / 255.0f;
+					srcPixels[offset * 3 + 1] = inpaintedPixels[offset] / 255.0f;
 					srcPixels[offset * 3 + 2] = inpaintedPixels[offset] / 255.0f;
 				} else {
+					srcPixels[offset * 3    ] = srcPixels[offset * 3];
+					srcPixels[offset * 3 + 1] = srcPixels[offset * 3];
 					srcPixels[offset * 3 + 2] = srcPixels[offset * 3];
 				}
 			}

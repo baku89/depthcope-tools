@@ -40,9 +40,13 @@ void ofApp::initScene() {
     }
     
     // initalize camera
-    camera.setPosition(200, 200, -300);
+    camera.setPosition(80, 80, -120);
     camera.lookAt(ofVec3f());
-    camera.setFov(70);
+    camera.setFov(50);
+	
+	orthoCamera.setPosition(0, 0, -300);
+	orthoCamera.lookAt(ofVec3f());
+	orthoCamera.enableOrtho();
     
     // init shader
 	depthShader.setupShaderFromFile(GL_FRAGMENT_SHADER, "depth.frag");
@@ -88,7 +92,7 @@ void ofApp::update(){
 	kinect.update();
 	if (kinect.isFrameNew()) {
         
-        fov.set(kinect.getFov());
+        focus.set(kinect.getFocus());
 		
         
         int w = DEPTH_WIDTH;
@@ -195,7 +199,7 @@ void ofApp::draw(){
             ofDrawBitmapString("processing...", 50, 40);
             ofDrawRectangle(0, 0, ofGetWidth() * postProcessing.progress, 10);
         }
-        
+		
     }
     ofPopMatrix();
 }
@@ -204,12 +208,18 @@ void ofApp::draw(){
 void ofApp::drawScene() {
 	
 	ofPushMatrix();
+	ofEnableDepthTest();
 	{
 		ofTranslate(GUI_WIDTH, DEPTH_HEIGHT);
 		
-		camera.begin();
+		if (isPreviewHeight) {
+			orthoCamera.begin();
+		} else {
+			camera.begin();
+		}
 		
 		ofDrawAxis(400);
+		ofDrawGrid(80, 5);
 
 		ofSetColor(255);
 		
@@ -217,15 +227,20 @@ void ofApp::drawScene() {
 		pointShader.setUniform2f("resolution", DEPTH_WIDTH, DEPTH_HEIGHT);
 		pointShader.setUniform1f("near", near);
 		pointShader.setUniform1f("far", far);
-		pointShader.setUniform2f("fov", fov.x, fov.y);
+		pointShader.setUniform2f("focus", focus.x, focus.y);
 		pointShader.setUniformTexture("depth", depthImage, 0);
 		
 		mesh.draw();
 		
 		pointShader.end();
 		
-		camera.end();
+		if (isPreviewHeight) {
+			orthoCamera.end();
+		} else {
+			camera.end();
+		}
 	}
+	ofDisableDepthTest();
 	ofPopMatrix();
     
     
@@ -252,8 +267,16 @@ void ofApp::keyPressed(int key){
                 
                 recorder.startThread();
             } else {
-//                recorder.stopThread();
                 willStopRecording = true;
+				
+				// save current settings
+				ofxXmlSettings params;
+				params.addValue("near", near);
+				params.addValue("far", far);
+				params.addValue("fx", focus.x);
+				params.addValue("fy", focus.y);
+				params.saveFile(SAVED_DIR + "/" + takeName + "/params.xml");
+				
                 ofLogNotice() << "End Recording frames:" << recorder.counter;
             }
             break;
@@ -267,6 +290,9 @@ void ofApp::keyPressed(int key){
 			testImage.setFromPixels(testPixels);
 			testFilledImage.setFromPixels(testFilledPixels);
 			break;
+			
+		case 'h':
+			isPreviewHeight = !isPreviewHeight;
     }
 }
 
@@ -278,4 +304,4 @@ string ofApp::getTakeName() {
 		+ ofToString(ofGetHours(), 2, '0') + "-"
 		+ ofToString(ofGetMinutes(), 2, '0') + "-"
 		+ ofToString(ofGetSeconds(), 2, '0');
-} 
+}

@@ -69,8 +69,12 @@ public:
 		
 		depthFiller.radius = radius;
 		srcPixels = depthFiller.inpaint(srcPixels);
+
+		string basename = file.getBaseName();
 		
-		string path = SAVED_DIR + "/" + takeName + "/" + INPAINTED_NAME + "/" + (string)file.getBaseName() + ".exr";
+		ofStringReplace(basename, (const string &)RAW_NAME, (const string &)INPAINTED_NAME);
+		
+		string path = SAVED_DIR + "/" + takeName + "/" + INPAINTED_NAME + "/" + (string)basename + ".exr";
         
         ofSaveImage(srcPixels, ofToDataPath(path));
     }

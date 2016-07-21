@@ -31,19 +31,10 @@ public:
 	string getTakeName();
 
 	void keyPressed(int key);
-	void keyReleased(int key);
-	void mouseMoved(int x, int y );
-	void mouseDragged(int x, int y, int button);
-	void mousePressed(int x, int y, int button);
-	void mouseReleased(int x, int y, int button);
-	void mouseEntered(int x, int y);
-	void mouseExited(int x, int y);
-	void windowResized(int w, int h);
-	void dragEvent(ofDragInfo dragInfo);
-	void gotMessage(ofMessage msg);
     
     // mesh
     ofEasyCam           camera;
+	ofCamera			orthoCamera;
     ofShader            pointShader;
     ofMesh              mesh;
     
@@ -64,13 +55,15 @@ public:
     stringstream        ss;
     bool                isRecording = false;
     bool                willStopRecording = false;
+	bool				isPreviewHeight;
     string              takeName;
     
     
     // parameters
     ofxDatGui*          gui;
     float				near, far; // cm
-    ofVec2f             fov;
-    
+	int					cropWidth, cropHeight;
+	ofVec2f             focus;
+	
     
 };
