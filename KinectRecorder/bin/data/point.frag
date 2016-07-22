@@ -6,5 +6,5 @@ varying float luminance;
 
 void main() {
 
-	gl_FragColor = vec4(vec3(luminance), opacity);
+	gl_FragColor = vec4(1.0, luminance, luminance, opacity);
 }

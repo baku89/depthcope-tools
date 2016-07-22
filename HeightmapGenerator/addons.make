@@ -1,0 +1,5 @@
+ofxCv
+ofxDatGui
+ofxImageSequenceRecorder
+ofxOpenCv
+ofxXmlSettings
