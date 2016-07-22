@@ -22,6 +22,7 @@ public:
     
     void initScene();
     void drawScene();
+    void drawUi();
 	
 	void loadGui();
 	void saveGui();
@@ -51,11 +52,15 @@ public:
     
     PostProcessing      postProcessing;
     
+    ofPolyline          guide;
+    
     
     stringstream        ss;
     bool                isRecording = false;
     bool                willStopRecording = false;
-	bool				isPreviewHeight;
+	bool				isPreviewHeight = false;
+    bool                isPreviewThumb = true;
+    bool                isFlipHorizontal = true;
     string              takeName;
     
     

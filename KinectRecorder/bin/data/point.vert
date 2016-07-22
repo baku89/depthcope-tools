@@ -10,7 +10,10 @@ varying float luminance;
 
 void main() {
 	
-	vec4 color = texture2DRect(depth, gl_Vertex.xy + vec2(256.0, 212.0));
+	vec2 uv = gl_Vertex.xy + vec2(256.0, 212.0);
+	uv.x = 512.0 - uv.x;
+	uv.y = 424.0 - uv.y;
+	vec4 color = texture2DRect(depth, uv);
 
 	luminance = color.r;
 	float d = (1.0 - luminance) * (far - near) + near;
@@ -18,7 +21,7 @@ void main() {
 
 	vec4 position = vec4(
 			gl_Vertex.x * d / focus.x,
-			-gl_Vertex.y * d / focus.y,
+			gl_Vertex.y * d / focus.y,
 			d,
 			1.0
 		);

@@ -44,7 +44,7 @@ void ofApp::initScene() {
     camera.lookAt(ofVec3f());
     camera.setFov(50);
 	
-	orthoCamera.setPosition(0, 0, -300);
+	orthoCamera.setPosition(0, 0, -120);
 	orthoCamera.lookAt(ofVec3f());
 	orthoCamera.enableOrtho();
     
@@ -65,6 +65,9 @@ void ofApp::loadGui() {
 	gui->addSlider("near", 0, 800)->bind(near);
 	gui->addSlider("far", 0, 800)->bind(far);
 	gui->addSlider("fill radius", 1, 15)->bind(postProcessing.radius);
+    gui->addToggle("preview height")->bind(isPreviewHeight);
+    gui->addToggle("preview thumb")->bind(isPreviewThumb);
+    gui->addToggle("flip horizontal")->bind(isFlipHorizontal);
 	gui->setTheme(new ofxDatGuiThemeMidnight());
 	
 	// load
@@ -72,8 +75,11 @@ void ofApp::loadGui() {
 	settings.loadFile("settings.xml");
 	
 	near = settings.getValue("near", 50.0);
-	far	 = settings.getValue("far", 500.0);
-	postProcessing.radius = settings.getValue("fillRadius", 3.0);
+    far	 = settings.getValue("far", 500.0);
+    postProcessing.radius = settings.getValue("fillRadius", 3.0);
+    isPreviewHeight = (bool)settings.getValue("isPreviewHeight", (bool)false);
+    isPreviewThumb = (bool)settings.getValue("isPreviewThumb", (bool)false);
+    isPreviewThumb = (bool)settings.getValue("isFlipHorizontal", (bool)true);
 }
 
 void ofApp::saveGui() {
@@ -82,6 +88,9 @@ void ofApp::saveGui() {
 	settings.addValue("near", near);
 	settings.addValue("far", far);
 	settings.addValue("fillRadius", postProcessing.radius);
+    settings.addValue("isPreviewHeight", (int)isPreviewHeight);
+    settings.addValue("isPreviewThumb", (int)isPreviewThumb);
+    settings.addValue("isFlipHorizontal", (int)isFlipHorizontal);
 	settings.saveFile("settings.xml");
 	
 }
@@ -121,6 +130,7 @@ void ofApp::update(){
             }
         }
         
+        depthPixels.mirror(false, !isFlipHorizontal);
         depthImage.setFromPixels(depthPixels);
         
         
@@ -136,6 +146,11 @@ void ofApp::update(){
         
         doPostProcessing();
     }
+    
+    // update guide
+//    guide.clear();
+//    guide.addVertex(0, 0, 0);
+//    guide.addVertex()
 }
 
 //--------------------------------------------------------------
@@ -152,56 +167,9 @@ void ofApp::exit() {
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-    
     ofBackground(0);
-    
-    // draw 3d
     this->drawScene();
-    
-    
-    // draw 2d
-    ofPushMatrix();
-    ofTranslate(GUI_WIDTH, 0);
-    {
-		ofSetColor(0);
-		ofDrawRectangle(0, 0, DEPTH_WIDTH * 3, DEPTH_HEIGHT);
-		
-		ofSetColor(255);
-		depthShader.begin();
-		{
-			depthImage.draw(0, 0);
-			
-			if (testImage.isAllocated()) {
-				testImage.draw(DEPTH_WIDTH, 0);
-			}
-		}
-		depthShader.end();
-		filledShader.begin();
-		{
-			if (testFilledImage.isAllocated()) {
-				testFilledImage.draw(DEPTH_WIDTH * 2, 0);
-			}
-		}
-		filledShader.end();
-		
-        if (isRecording) {
-            ofSetColor(255, 0, 0);
-            ofDrawCircle(40, 40, 10);
-            ss.str("");
-            ss << "recording: "  << takeName << "_" << ofToString(recorder.counter, 6, '0');
-            ofDrawBitmapString(ss.str(), 50, 40);
-        } else if (willStopRecording) {
-            ofSetColor(255, 0, 255);
-            ofDrawCircle(40, 40, 10);
-            ofDrawBitmapString("saving...", 50, 40);
-        } else if (postProcessing.isThreadRunning()) {
-            ofSetColor(0, 255, 0);
-            ofDrawBitmapString("processing...", 50, 40);
-            ofDrawRectangle(0, 0, ofGetWidth() * postProcessing.progress, 10);
-        }
-		
-    }
-    ofPopMatrix();
+    this->drawUi();
 }
 
 //--------------------------------------------------------------
@@ -219,7 +187,7 @@ void ofApp::drawScene() {
 		}
 		
 		ofDrawAxis(400);
-		ofDrawGrid(80, 5);
+//		ofDrawGrid(80, 5);
 
 		ofSetColor(255);
 		
@@ -231,8 +199,9 @@ void ofApp::drawScene() {
 		pointShader.setUniformTexture("depth", depthImage, 0);
 		
 		mesh.draw();
-		
 		pointShader.end();
+        
+        guide.draw();
 		
 		if (isPreviewHeight) {
 			orthoCamera.end();
@@ -240,9 +209,65 @@ void ofApp::drawScene() {
 			camera.end();
 		}
 	}
+    
 	ofDisableDepthTest();
 	ofPopMatrix();
+}
+
+//--------------------------------------------------------------
+void ofApp::drawUi() {
     
+    ofPushMatrix();
+    ofTranslate(GUI_WIDTH, 0);
+    {
+        if (isPreviewThumb) {
+            ofSetColor(0);
+            ofDrawRectangle(0, 0, DEPTH_WIDTH * 3, DEPTH_HEIGHT);
+            
+            ofSetColor(255);
+            depthShader.begin();
+            {
+                depthImage.draw(0, 0);
+                
+                if (testImage.isAllocated()) {
+                    testImage.draw(DEPTH_WIDTH, 0);
+                }
+            }
+            depthShader.end();
+            filledShader.begin();
+            {
+                if (testFilledImage.isAllocated()) {
+                    testFilledImage.draw(DEPTH_WIDTH * 2, 0);
+                }
+            }
+            filledShader.end();
+            
+            ofNoFill();
+            ofSetLineWidth(2);
+            ofDrawRectangle(LINE_WIDTH / 2, LINE_WIDTH / 2, DEPTH_WIDTH - LINE_WIDTH, DEPTH_HEIGHT - LINE_WIDTH);
+            ofDrawRectangle(LINE_WIDTH / 2 + DEPTH_WIDTH, LINE_WIDTH / 2, DEPTH_WIDTH - LINE_WIDTH, DEPTH_HEIGHT - LINE_WIDTH);
+            ofDrawRectangle(LINE_WIDTH / 2 + DEPTH_WIDTH * 2, LINE_WIDTH / 2, DEPTH_WIDTH - LINE_WIDTH, DEPTH_HEIGHT - LINE_WIDTH);
+            ofFill();
+        }
+        
+        if (isRecording) {
+            ofSetColor(255, 0, 0);
+            ofDrawCircle(40, 40, 10);
+            ss.str("");
+            ss << "recording: "  << takeName << "_" << ofToString(recorder.counter, 6, '0');
+            ofDrawBitmapString(ss.str(), 50, 40);
+        } else if (willStopRecording) {
+            ofSetColor(255, 0, 255);
+            ofDrawCircle(40, 40, 10);
+            ofDrawBitmapString("saving...", 50, 40);
+        } else if (postProcessing.isThreadRunning()) {
+            ofSetColor(0, 255, 0);
+            ofDrawBitmapString("processing...", 50, 40);
+            ofDrawRectangle(0, 0, ofGetWidth() * postProcessing.progress, 10);
+        }
+        
+    }
+    ofPopMatrix();
     
 }
 
@@ -293,6 +318,11 @@ void ofApp::keyPressed(int key){
 			
 		case 'h':
 			isPreviewHeight = !isPreviewHeight;
+            break;
+            
+        case 'q':
+            isPreviewThumb = !isPreviewThumb;
+            break;
     }
 }
 

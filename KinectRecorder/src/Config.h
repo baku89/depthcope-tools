@@ -9,3 +9,5 @@
 
 #define RAW_NAME		(string)"raw"
 #define INPAINTED_NAME  (string)"inpainted"
+
+#define LINE_WIDTH      2
