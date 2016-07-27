@@ -22,15 +22,10 @@ void ofApp::loadGui() {
     gui->addSlider("scale", 1, 12.0)->bind(hmr.scale);
     
     gui->addBreak()->setHeight(20.0f);
-    
     gui->addSlider("time", 0, 0)->bind(currentFrame);
     gui->addToggle("preview")->bind(hmr.isPreview);
     
     gui->addBreak()->setHeight(20.0f);
-    
-    
-    gui->addBreak();
-    
     gui->setTheme(new ofxDatGuiThemeMidnight);
     gui->setWidth(GUI_WIDTH);
     gui->onSliderEvent(this, &ofApp::onSliderEvent);
@@ -83,8 +78,6 @@ void ofApp::onToggleEvent(ofxDatGuiToggleEvent e) {
 //--------------------------------------------------------------
 void ofApp::exit() {
     saveGui();
-    
-    exporter.waitForThread();
 }
 
 //--------------------------------------------------------------
@@ -94,7 +87,6 @@ void ofApp::update(){
         needsUpdate = false;
         hmr.render();
     }
-    
 }
 
 //--------------------------------------------------------------
@@ -105,7 +97,6 @@ void ofApp::draw(){
     ofPushMatrix();
     ofTranslate(GUI_WIDTH, 0);
     {
-        
         // image
         ofSetColor(255);
         if (hmr.getTexture().isAllocated()) {
@@ -121,15 +112,18 @@ void ofApp::draw(){
         ofRectangle(50 + LINE_WIDTH / 2, 0, DEPTH_WIDTH / 2 - LINE_WIDTH, DEPTH_HEIGHT / 2 - LINE_WIDTH);
         ofFill();
         
-        // gui
-        if (exporter.isThreadRunning()) {
-            ofSetColor(0, 0, 255);
-            ofDrawRectangle(0, 0, exporter.progress * (ofGetWidth() - GUI_WIDTH), 50);
-        }
-        
         ofSetColor(255);
         ofDrawBitmapString("Take Name:" + takeName, 10, 15);
-        ofDrawBitmapString("Current Frame:" + ofToString(currentFrame) + "/" + ofToString(totalFrame) + " near=" + ofToString(hmr.near, 4) + " far=" + ofToString(hmr.far, 4) + " fx=" + ofToString(hmr.focus.x) + " outputWidth=" + ofToString(hmr.getWidth()) + " outputHeight=" + ofToString(hmr.getHeight()), 10, 35);
+        
+        ss.str("");
+        ss << "Current Frame: " << (ofToString(currentFrame) + "/" + ofToString(totalFrame));
+        ss << " near=" << ofToString(hmr.near, 4);
+        ss << " far=" << ofToString(hmr.far, 4);
+        ss << " fx=" << ofToString(hmr.focus.x);
+        ss << " outputWidth=" << ofToString(hmr.getWidth());
+        ss << " outputHeight=" << ofToString(hmr.getHeight());
+        
+        ofDrawBitmapString(ss.str(), 10, 35);
     }
     ofPopMatrix();
 }
@@ -153,7 +147,6 @@ void ofApp::loadTake() {
     gui->getSlider("time")->setMax(totalFrame - 1);
     loadFrame();
     ofLogNotice() << "Take Name: " << dir.getAbsolutePath() << " Frame Count: " << totalFrame;
-
 }
 
 void ofApp::loadTakeWithDialog() {
@@ -173,11 +166,7 @@ void ofApp::loadFrame() {
 
 //--------------------------------------------------------------
 void ofApp::exportTake() {
-    if (exporter.isThreadRunning()) {
-        exporter.stopThread();
-    }
-    exporter.setup(hmr, takeName);
-    exporter.startThread();
+    exporter.start(hmr, takeName);
 }
 
 //--------------------------------------------------------------

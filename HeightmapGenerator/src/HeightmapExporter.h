@@ -13,7 +13,7 @@
 
 #include "Config.h"
 
-class HeightmapExporter : public ofThread {
+class HeightmapExporter {
 private:
     ofDirectory         srcDir;
     string              takeName;
@@ -21,14 +21,9 @@ private:
     ofFloatPixels       rendereredImage;
     
 public:
-    float progress = 0.0;
-    
-    HeightmapExporter() : ofThread() {
-        
-    }
     
     
-    void setup(const HeightmapRenderer _hmr, const string _takeName) {
+    void start(const HeightmapRenderer _hmr, const string _takeName) {
         takeName = _takeName;
         srcDir = ofDirectory(ofToDataPath(SAVED_DIR + "/" + takeName + "/" + INPAINTED_NAME));
         srcDir.allowExt("exr");
@@ -44,14 +39,12 @@ public:
         hmr.translation.set(_hmr.translation);
         
         hmr.isPreview   = false;
-    }
-    
-    void threadedFunction() {
+        
+        // load
         int i = 0;
         
         for (auto file : srcDir.getFiles()) {
             processImage(file);
-            progress = (float)++i / srcDir.size();
         }
     }
     

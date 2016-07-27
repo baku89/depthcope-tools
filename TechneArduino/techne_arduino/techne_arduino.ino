@@ -19,5 +19,5 @@ void setup() {
 void loop() {
   
   motor->step(100, FORWARD, MICROSTEP);
-  motor->step(100, BACKWARD, MICROSTEP);
+//  motor->step(100, BACKWARD, MICROSTEP);
 }

@@ -43,6 +43,9 @@ public:
     void dragEvent(ofDragInfo dragInfo);
     void gotMessage(ofMessage msg);
     
+    // util
+    stringstream            ss;
+    
     // objects
     HeightmapRenderer       hmr;
     HeightmapExporter       exporter;

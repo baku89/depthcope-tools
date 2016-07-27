@@ -1,0 +1,13 @@
+ofxCv
+ofxDatGui
+ofxDmx
+ofxGameCamera
+ofxGrabCam
+ofxJSON
+ofxKinectProjectorToolkitV2
+ofxMultiKinectV2
+ofxOpenCv
+ofxOsc
+ofxSecondWindow
+ofxTurboJpeg
+ofxXmlSettings

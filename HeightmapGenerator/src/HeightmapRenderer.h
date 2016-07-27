@@ -65,7 +65,7 @@ public:
     }
     
     void loadTexture(string path) {
-        ofLogNotice() << "LOADING!!! loading: " << path;
+        ofLogNotice() << "loading: " << path;
         depthImage.load(path);
     }
     
@@ -79,7 +79,6 @@ public:
     int getHeight() {
         return (int)captureSize.y;
     }
-
     
 private:
     
