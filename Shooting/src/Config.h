@@ -10,7 +10,7 @@
 
 #define COLOR_SCALE     0.3925925926f
 
-#define GUI_WIDTH       320
+#define GUI_WIDTH       240
 
 #define SAVED_DIR       (string)"../../../saved"
 
@@ -21,4 +21,8 @@
 
 #define CALIB_FRAMES    30
 
-#define TH              2
+#define HEIGHTMAP_DEPTH 30
+
+#define HEIGHTMAP_WIDTH 1024
+
+#define LIGHT_STEP      0.05

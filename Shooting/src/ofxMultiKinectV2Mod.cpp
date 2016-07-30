@@ -179,15 +179,18 @@ void ofxMultiKinectV2Mod::update()
         depthPix = depthPixFront;
         
         if (depthPixDistance.isAllocated()) {
-            float ratio = 0.2;
-            
             for (int i = 0, len = 512 * 424; i < len; i++) {
-                depthPixDistance[i] = depthPix[i] * feedbackRate + depthPixDistance[i] * (1 - feedbackRate);
+                depthPixVelocity[i] = depthPixBack[i] - depthPix[i];
+                if (abs(depthPixVelocity[i]) < velocityThreshold) {
+                    depthPixDistance[i] = depthPix[i] * feedbackRate + depthPixDistance[i] * (1 - feedbackRate);
+                }
             }
         } else {
             depthPixDistance.allocate(512, 424, 1);
+            depthPixVelocity.allocate(512, 424, 1);
             for (int i = 0, len = 512 * 424; i < len; i++) {
                 depthPixDistance[i] = depthPix[i];
+                depthPixVelocity[i] = 0.0f;
             }
         }
         
@@ -232,6 +235,13 @@ const vector<char>& ofxMultiKinectV2Mod::getJpegBuffer() {
     return jpeg;
 }
 
+float ofxMultiKinectV2Mod::getVelocityAt(int x, int y) {
+    if (!depthPixVelocity.isAllocated()) {
+        return 0.0f;
+    }
+    return depthPixVelocity[x + y * depthPixVelocity.getWidth()];
+}
+
 float ofxMultiKinectV2Mod::getDistanceAt(int x, int y) {
     if (!depthPix.isAllocated()) {
         return 0.0f;
@@ -243,12 +253,6 @@ float ofxMultiKinectV2Mod::getDistanceAt(int x, int y) {
 ofVec3f ofxMultiKinectV2Mod::getWorldCoordinateAt(int x, int y) {
     return getWorldCoordinateAt(x, y, getDistanceAt(x, y));
 }
-
-//ofVec3f ofxMultiKinectV2Mod::getWorldCoordinateAtFloat(float x, float y) {
-//    return (getWorldCoordinateAt((int)x, (int)y)
-//            + getWorldCoordinateAt((int)x, (int)(y + 1))
-//            + getWorldCoordinateAt((int)(x + 1), (int)y)
-//            + getWorldCoordinateAt((int)(x + 1), (int)(y + 1))) * 0.25;
 //}
 
 ofVec3f ofxMultiKinectV2Mod::getWorldCoordinateAt(int x, int y, float z) {

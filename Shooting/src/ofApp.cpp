@@ -7,7 +7,7 @@ void ofApp::setup(){
     
     ofSetVerticalSync(true);
     ofSetFrameRate(60);
-    ofSetWindowShape(GUI_WIDTH + DEPTH_WIDTH * 4, DEPTH_HEIGHT * 4);
+    ofSetWindowShape(1024, 576);
     ofSetWindowTitle("Calibration Control");
     ofSetWindowPosition(0, 0);
     ofEnableAlphaBlending();
@@ -39,6 +39,14 @@ void ofApp::setup(){
     
 	this->loadGui();
     this->initScene();
+    this->initShooting();
+}
+
+//--------------------------------------------------------------
+void ofApp::initShooting() {
+    // init shooting
+    
+    hud.allocate(140, 120, GL_RGBA);
     
     dmx.connect("/dev/tty.usbserial-EN159284");
     if (isPreviewLight) {
@@ -48,6 +56,58 @@ void ofApp::setup(){
     }
     
     dfReceiver.setup(1234);
+    
+    heightmapLoader.setup("/Volumes/MugiRAID1/Works/2016/26_techne/render/heightmap/heightmap_depth####.exr");
+    heightmapPixels.allocate(HEIGHTMAP_WIDTH, HEIGHTMAP_WIDTH, 1);
+    heightmapU8Pixels.allocate(HEIGHTMAP_WIDTH, HEIGHTMAP_WIDTH, 1);
+    heightmapCvImage.allocate(HEIGHTMAP_WIDTH, HEIGHTMAP_WIDTH);
+    
+    loadHeightmap();
+    
+    contour.setStrokeColor(255);
+    contour.setStrokeWidth(1);
+    contour.setFilled(false);
+    
+    
+    int x, y;
+    int w = DEPTH_WIDTH;
+    int h = DEPTH_HEIGHT;
+    int step = 2;
+    
+    for (y = 0; y < h; y += step) {
+        for (x = 0; x < w; x += step) {
+            depthPointCloud.addColor(ofColor(255));
+            depthPointCloud.addTexCoord(ofVec2f(x / (float)w, y / (float)h));
+            depthPointCloud.addVertex(ofVec3f(x - w / 2, y - h / 2, 0));
+        }
+    }
+    
+    ofPlanePrimitive plane;
+    plane.set(DEPTH_WIDTH - 1, DEPTH_HEIGHT - 1);
+    plane.setResolution(DEPTH_WIDTH, DEPTH_HEIGHT);
+    
+    heightmapMesh = plane.getMesh();
+    
+    for (int i = 0, len = DEPTH_WIDTH * DEPTH_HEIGHT; i < len; i++) {
+        heightmapMesh.addColor(ofColor(255));
+    }
+    
+//    heightmapMesh.setPosition(1280/2, 720/2, 0);
+    heightmapMesh.setMode(OF_PRIMITIVE_POINTS);
+    ofLogNotice() << "vertices=" << heightmapMesh.getVertices().size();
+    ofLogNotice() << "indices=" << heightmapMesh.getIndices().size();
+    ofLogNotice() << "colors=" << heightmapMesh.getColors().size();
+    
+//    for (y = 0; y < 10; y++) {
+//        for (x = 0; x < 10; x++) {
+//            ofVec3f v = heightmapMesh.getVertex(y * DEPTH_WIDTH + x);
+//            cout << "[" << x << ", " << y << "] = " << ofToString(v.x, 4) << "\t" << ofToString(v.y, 4) << endl;
+//        }
+//    }
+    
+    heightmapShader.load("heightmap");
+    
+    discController.setup("/dev/cu.usbmodem411", 0);
 }
 
 //--------------------------------------------------------------
@@ -58,7 +118,7 @@ void ofApp::initScene() {
     depthPixels.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, OF_IMAGE_COLOR);
     depthImage.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, OF_IMAGE_COLOR);
     
-    mesh.setMode(OF_PRIMITIVE_POINTS);
+    depthPointCloud.setMode(OF_PRIMITIVE_POINTS);
     
     int x, y;
     int w = DEPTH_WIDTH;
@@ -67,9 +127,9 @@ void ofApp::initScene() {
     
     for (y = 0; y < h; y += step) {
         for (x = 0; x < w; x += step) {
-            mesh.addColor(ofColor(255));
-            mesh.addTexCoord(ofVec2f(x / (float)w, y / (float)h));
-            mesh.addVertex(ofVec3f(x - w / 2, y - h / 2, 0));
+            depthPointCloud.addColor(ofColor(255));
+            depthPointCloud.addTexCoord(ofVec2f(x / (float)w, y / (float)h));
+            depthPointCloud.addVertex(ofVec3f(x - w / 2, y - h / 2, 0));
         }
     }
     
@@ -93,23 +153,28 @@ void ofApp::loadGui() {
     ofxDatGuiFolder* scene = gui->addFolder("scene");
     scene->addSlider("near", 0, 300)->bind(near);
     scene->addSlider("far", 0, 300)->bind(far);
+    scene->addToggle("show ir")->bind(isDisplayIr);
     
     gui->addBreak()->setHeight(30.0f);
-    ofxDatGuiFolder* plane = gui->addFolder("plane");
-    plane->addButton("calibrate plane");
-    plane->addToggle("use calibrated")->bind(useCalibrated);
-    plane->addSlider("mask margin", 0, 50)->bind(planeMaskMargin);
-    plane->addSlider("mask threshold", 0, 400)->bind(planeMaskThreshold);
-    plane->expand();
-    
+    ofxDatGuiFolder* disc = gui->addFolder("disc");
+    disc->addButton("calibrate");
+    disc->addToggle("use calibrated")->bind(useCalibrated);
+    disc->addSlider("mask margin", 0, 50)->bind(discMaskMargin);
+    disc->addSlider("mask threshold", 0, 400)->bind(discMaskThreshold);
+    disc->expand();
     
     gui->addBreak()->setHeight(30.0f);
     ofxDatGuiFolder* shooting = gui->addFolder("shooting");
     shooting->addButton("switch shooting mode");
     shooting->addSlider("feedback rate", 0, 0.2)->bind(kinect.feedbackRate);
+    shooting->addSlider("tolerance (cm)", 0, 1)->bind(tolerance);
+    shooting->addToggle("display heightmap")->bind(isDisplayHeightmap);
+    shooting->addSlider("velocity threshold", 0, 6)->bind(kinect.velocityThreshold);
     shooting->addToggle("preview light")->bind(isPreviewLight);
     shooting->addSlider("light front", 0, 1)->bind(lightFront);
     shooting->addSlider("light front", 0, 1)->bind(lightBack);
+    shooting->addSlider("rotate step", 0, 360)->bind(rotateStep);
+    shooting->addToggle("enable timer");
     shooting->expand();
     
     gui->onToggleEvent(this, &ofApp::onToggleEvent);
@@ -125,36 +190,37 @@ void ofApp::loadGui() {
         ofxJSONElement settings;
         settings.open("settings.json");
         
-        mode = settings.get("mode", MODE_CALIB_PLANE).asInt();
+        mode = settings.get("mode", MODE_CALIBRATION).asInt();
         
         // scene
         near = settings["scene"].get("near", 50).asFloat();
         far  = settings["scene"].get("far", 150).asFloat();
+        isDisplayIr = settings["scene"].get("isDisplayIr", true).asBool();
         
-        // plane
-        kOrigin.x = settings["plane"]["origin"]["kinect"].get((Json::ArrayIndex)0, DEPTH_WIDTH / 2).asFloat();
-        kOrigin.y = settings["plane"]["origin"]["kinect"].get((Json::ArrayIndex)1, DEPTH_HEIGHT / 2).asFloat();
-        wOrigin.x = settings["plane"]["origin"]["world"].get((Json::ArrayIndex)0, 0).asFloat();
-        wOrigin.y = settings["plane"]["origin"]["world"].get((Json::ArrayIndex)1, 0).asFloat();
-        wOrigin.z = settings["plane"]["origin"]["world"].get((Json::ArrayIndex)2, 100).asFloat();
+        // disc
+        kOrigin.x = settings["disc"]["origin"]["kinect"].get((Json::ArrayIndex)0, DEPTH_WIDTH / 2).asFloat();
+        kOrigin.y = settings["disc"]["origin"]["kinect"].get((Json::ArrayIndex)1, DEPTH_HEIGHT / 2).asFloat();
+        wOrigin.x = settings["disc"]["origin"]["world"].get((Json::ArrayIndex)0, 0).asFloat();
+        wOrigin.y = settings["disc"]["origin"]["world"].get((Json::ArrayIndex)1, 0).asFloat();
+        wOrigin.z = settings["disc"]["origin"]["world"].get((Json::ArrayIndex)2, 100).asFloat();
         
-        kAxisX.x = settings["plane"]["axisX"]["kinect"].get((Json::ArrayIndex)0, DEPTH_WIDTH).asFloat();
-        kAxisX.y = settings["plane"]["axisX"]["kinect"].get((Json::ArrayIndex)1, DEPTH_HEIGHT / 2).asFloat();
-        wAxisX.x = settings["plane"]["axisX"]["world"].get((Json::ArrayIndex)0, 40).asFloat();
-        wAxisX.y = settings["plane"]["axisX"]["world"].get((Json::ArrayIndex)1, 0).asFloat();
-        wAxisX.z = settings["plane"]["axisX"]["world"].get((Json::ArrayIndex)2, 100).asFloat();
+        kAxisX.x = settings["disc"]["axisX"]["kinect"].get((Json::ArrayIndex)0, DEPTH_WIDTH).asFloat();
+        kAxisX.y = settings["disc"]["axisX"]["kinect"].get((Json::ArrayIndex)1, DEPTH_HEIGHT / 2).asFloat();
+        wAxisX.x = settings["disc"]["axisX"]["world"].get((Json::ArrayIndex)0, 40).asFloat();
+        wAxisX.y = settings["disc"]["axisX"]["world"].get((Json::ArrayIndex)1, 0).asFloat();
+        wAxisX.z = settings["disc"]["axisX"]["world"].get((Json::ArrayIndex)2, 100).asFloat();
         
-        kAxisY.x = settings["plane"]["axisY"]["kinect"].get((Json::ArrayIndex)0, DEPTH_WIDTH / 2).asFloat();
-        kAxisY.y = settings["plane"]["axisY"]["kinect"].get((Json::ArrayIndex)1, 0).asFloat();
-        wAxisY.x = settings["plane"]["axisY"]["world"].get((Json::ArrayIndex)0, 0).asFloat();
-        wAxisY.y = settings["plane"]["axisY"]["world"].get((Json::ArrayIndex)1, 40).asFloat();
-        wAxisY.z = settings["plane"]["axisY"]["world"].get((Json::ArrayIndex)2, 100).asFloat();
+        kAxisY.x = settings["disc"]["axisY"]["kinect"].get((Json::ArrayIndex)0, DEPTH_WIDTH / 2).asFloat();
+        kAxisY.y = settings["disc"]["axisY"]["kinect"].get((Json::ArrayIndex)1, 0).asFloat();
+        wAxisY.x = settings["disc"]["axisY"]["world"].get((Json::ArrayIndex)0, 0).asFloat();
+        wAxisY.y = settings["disc"]["axisY"]["world"].get((Json::ArrayIndex)1, 40).asFloat();
+        wAxisY.z = settings["disc"]["axisY"]["world"].get((Json::ArrayIndex)2, 100).asFloat();
         
-        planeMaskMargin = settings["plane"].get("maskMargin", 5).asFloat();
-        planeMaskThreshold = settings["plane"].get("maskThreshold", 0.2).asFloat();
-        makePlaneMask();
+        discMaskMargin = settings["disc"].get("maskMargin", 5).asFloat();
+        discMaskThreshold = settings["disc"].get("maskThreshold", 0.2).asFloat();
+        makeDiscMask();
         
-        ofxJSON::ofxJSONElement mat = settings["plane"]["mat"];
+        ofxJSON::ofxJSONElement mat = settings["disc"]["mat"];
         float m00 = mat[ 0].asFloat();
         float m01 = mat[ 1].asFloat();
         float m02 = mat[ 2].asFloat();
@@ -171,27 +237,45 @@ void ofApp::loadGui() {
         float m31 = mat[13].asFloat();
         float m32 = mat[14].asFloat();
         float m33 = mat[15].asFloat();
-        planeMat.set(m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33);
-        planeInvMat = planeMat.getInverse();
+        discMat.set(m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33);
+        discInvMat = discMat.getInverse();
         
         // shooting
         kinect.feedbackRate = settings["shooting"].get("feedbackRate", 0.1).asFloat();
+        
+        tolerance = settings["shooting"].get("torelance", 0.5).asFloat();
+        isDisplayHeightmap = settings["shooting"].get("isDisplayHeightmap", true).asBool();
+        kinect.velocityThreshold = settings["shooting"].get("velocityThreshold", 3.0).asFloat();
         
         isPreviewLight = settings["shooting"].get("isPreviewLight", false).asBool();
         lightFront = settings["shooting"].get("lightFront", 1.0).asFloat();
         lightBack  = settings["shooting"].get("lightBack", 1.0).asFloat();
         
+        currentFrame = settings["shooting"].get("currentFrame", -1).asInt();
+        hudOrigin.set(
+                          settings["shooting"]["hudOrigin"].get((Json::ArrayIndex)0, 0).asFloat(),
+                          settings["shooting"]["hudOrigin"].get((Json::ArrayIndex)1, 0).asFloat());
         
+        rotateStep = settings["shooting"].get("rotateStep", 1).asFloat();
+        discController.setAngle( settings["shooting"].get("discAngle", 0).asFloat() );
+        
+        timer.toggle( settings["shooting"].get("enableTimer", false).asBool() );
+        timer.reset( settings["elapsedTime"].get("elapsedTime", 0).asFloat() );
     }
 }
 
 void ofApp::onToggleEvent(ofxDatGuiToggleEvent e) {
+    
+    bool value = e.target->getChecked();
+    
     if (e.target->is("preview light")) {
-        if (e.target->getChecked()) {
+        if (value) {
             enableLight();
         } else {
             disableLight();
         }
+    } else if (e.target->is("enable timer")) {
+        timer.toggle(value);
     }
 }
 
@@ -202,8 +286,8 @@ void ofApp::onSliderEvent(ofxDatGuiSliderEvent e) {
 }
 
 void ofApp::onButtonEvent(ofxDatGuiButtonEvent e) {
-    if (e.target->is("calibrate plane")) {
-        mode = MODE_CALIB_PLANE;
+    if (e.target->is("calibrate disc")) {
+        mode = MODE_CALIBRATION;
     } else if (e.target->is("switch shooting mode")) {
         mode = MODE_SHOOTING;
     }
@@ -227,74 +311,112 @@ void ofApp::saveGui() {
     // scene
     settings["scene"]["near"] = near;
     settings["scene"]["far"]  = far;
+    settings["scene"]["isDisplayIr"] = isDisplayIr;
     
-    // plane
-    settings["plane"]["origin"]["kinect"][0] = kOrigin.x;
-    settings["plane"]["origin"]["kinect"][1] = kOrigin.y;
-    settings["plane"]["origin"]["world"][0] = wOrigin.x;
-    settings["plane"]["origin"]["world"][1] = wOrigin.y;
-    settings["plane"]["origin"]["world"][2] = wOrigin.z;
+    // disc
+    settings["disc"]["origin"]["kinect"][0] = kOrigin.x;
+    settings["disc"]["origin"]["kinect"][1] = kOrigin.y;
+    settings["disc"]["origin"]["world"][0] = wOrigin.x;
+    settings["disc"]["origin"]["world"][1] = wOrigin.y;
+    settings["disc"]["origin"]["world"][2] = wOrigin.z;
     
-    settings["plane"]["axisX"]["kinect"][0] = kAxisX.x;
-    settings["plane"]["axisX"]["kinect"][1] = kAxisX.y;
-    settings["plane"]["axisX"]["world"][0] = wAxisX.x;
-    settings["plane"]["axisX"]["world"][1] = wAxisX.y;
-    settings["plane"]["axisX"]["world"][2] = wAxisX.z;
+    settings["disc"]["axisX"]["kinect"][0] = kAxisX.x;
+    settings["disc"]["axisX"]["kinect"][1] = kAxisX.y;
+    settings["disc"]["axisX"]["world"][0] = wAxisX.x;
+    settings["disc"]["axisX"]["world"][1] = wAxisX.y;
+    settings["disc"]["axisX"]["world"][2] = wAxisX.z;
     
-    settings["plane"]["axisY"]["kinect"][0] = kAxisY.x;
-    settings["plane"]["axisY"]["kinect"][1] = kAxisY.y;
-    settings["plane"]["axisY"]["world"][0] = wAxisY.x;
-    settings["plane"]["axisY"]["world"][1] = wAxisY.y;
-    settings["plane"]["axisY"]["world"][2] = wAxisY.z;
+    settings["disc"]["axisY"]["kinect"][0] = kAxisY.x;
+    settings["disc"]["axisY"]["kinect"][1] = kAxisY.y;
+    settings["disc"]["axisY"]["world"][0] = wAxisY.x;
+    settings["disc"]["axisY"]["world"][1] = wAxisY.y;
+    settings["disc"]["axisY"]["world"][2] = wAxisY.z;
     
-    settings["plane"]["maskMargin"] = planeMaskMargin;
-    settings["plane"]["maskThreshold"] = planeMaskThreshold;
+    settings["disc"]["maskMargin"] = discMaskMargin;
+    settings["disc"]["maskThreshold"] = discMaskThreshold;
     
-    settings["plane"]["mat"][ 0] = planeMat.getRowAsVec4f(0).x;
-    settings["plane"]["mat"][ 1] = planeMat.getRowAsVec4f(1).x;
-    settings["plane"]["mat"][ 2] = planeMat.getRowAsVec4f(2).x;
-    settings["plane"]["mat"][ 3] = planeMat.getRowAsVec4f(3).x;
-    settings["plane"]["mat"][ 4] = planeMat.getRowAsVec4f(0).y;
-    settings["plane"]["mat"][ 5] = planeMat.getRowAsVec4f(1).y;
-    settings["plane"]["mat"][ 6] = planeMat.getRowAsVec4f(2).y;
-    settings["plane"]["mat"][ 7] = planeMat.getRowAsVec4f(3).y;
-    settings["plane"]["mat"][ 8] = planeMat.getRowAsVec4f(0).z;
-    settings["plane"]["mat"][ 9] = planeMat.getRowAsVec4f(1).z;
-    settings["plane"]["mat"][10] = planeMat.getRowAsVec4f(2).z;
-    settings["plane"]["mat"][11] = planeMat.getRowAsVec4f(3).z;
-    settings["plane"]["mat"][12] = planeMat.getRowAsVec4f(0).w;
-    settings["plane"]["mat"][13] = planeMat.getRowAsVec4f(1).w;
-    settings["plane"]["mat"][14] = planeMat.getRowAsVec4f(2).w;
-    settings["plane"]["mat"][15] = planeMat.getRowAsVec4f(3).w;
+    settings["disc"]["mat"][ 0] = discMat.getRowAsVec4f(0).x;
+    settings["disc"]["mat"][ 1] = discMat.getRowAsVec4f(1).x;
+    settings["disc"]["mat"][ 2] = discMat.getRowAsVec4f(2).x;
+    settings["disc"]["mat"][ 3] = discMat.getRowAsVec4f(3).x;
+    settings["disc"]["mat"][ 4] = discMat.getRowAsVec4f(0).y;
+    settings["disc"]["mat"][ 5] = discMat.getRowAsVec4f(1).y;
+    settings["disc"]["mat"][ 6] = discMat.getRowAsVec4f(2).y;
+    settings["disc"]["mat"][ 7] = discMat.getRowAsVec4f(3).y;
+    settings["disc"]["mat"][ 8] = discMat.getRowAsVec4f(0).z;
+    settings["disc"]["mat"][ 9] = discMat.getRowAsVec4f(1).z;
+    settings["disc"]["mat"][10] = discMat.getRowAsVec4f(2).z;
+    settings["disc"]["mat"][11] = discMat.getRowAsVec4f(3).z;
+    settings["disc"]["mat"][12] = discMat.getRowAsVec4f(0).w;
+    settings["disc"]["mat"][13] = discMat.getRowAsVec4f(1).w;
+    settings["disc"]["mat"][14] = discMat.getRowAsVec4f(2).w;
+    settings["disc"]["mat"][15] = discMat.getRowAsVec4f(3).w;
     
     // shooting
     settings["shooting"]["feedbackRate"] = kinect.feedbackRate;
+    settings["shooting"]["isDisplayHeightmap"] = isDisplayHeightmap;
+    settings["shooting"]["velocityThreshold"] = kinect.velocityThreshold;
     
     settings["shooting"]["isPreviewLight"] = isPreviewLight;
     settings["shooting"]["lightFront"] = lightFront;
     settings["shooting"]["lightFront"] = lightBack;
+    settings["shooting"]["rotateStep"] = rotateStep;
+    
+    settings["shooting"]["currentFrame"] = currentFrame;
+    settings["shooting"]["hudOrigin"][0] = hudOrigin.x;
+    settings["shooting"]["hudOrigin"][1] = hudOrigin.y;
+    settings["shooting"]["discAngle"] = discController.getAngle();
+    settings["shooting"]["enableTimer"] = timer.isEnabled();
     
     settings.save("settings.json");
 	
 }
 
 //--------------------------------------------------------------
+void ofApp::sendDmx() {
+    dmx.setLevel(1, lightFront * 255);
+    dmx.setLevel(2, lightBack * 255);
+    dmx.update();
+}
+
+void ofApp::enableLight() {
+    isPreviewLight = true;
+    sendDmx();
+}
+
+void ofApp::disableLight() {
+    isPreviewLight = false;
+    dmx.setLevel(1, 0);
+    dmx.setLevel(2, 0);
+    dmx.update();
+}
+
+void ofApp::doBeforeShoot() {
+    enableLight();
+}
+
+void ofApp::doAfterShoot() {
+    disableLight();
+    timer.reset();
+}
+
+//--------------------------------------------------------------
 void ofApp::update(){
-	
-	kinect.update();
+    
+    kinect.update();
     
     if (kinect.isFrameNew()) {
         ofFloatPixels& irPixels = kinect.getIrPixelsRef();
-//        irPixels.mirror(false, true);
+        //        irPixels.mirror(false, true);
         irTex.loadData(irPixels);
         
         
         this->updateScene();
     }
     
-    if (mode == MODE_CALIB_PLANE) {
+    if (mode == MODE_CALIBRATION) {
         if (restCalibrationFrames-- > 0) {
-
+            
             wOrigin += kinect.getWorldCoordinateAt(kOrigin.x, kOrigin.y);
             wAxisX += kinect.getWorldCoordinateAt(kAxisX.x, kAxisX.y);
             wAxisY += kinect.getWorldCoordinateAt(kAxisY.x, kAxisY.y);
@@ -311,17 +433,17 @@ void ofApp::update(){
                 ey = (wAxisY - wOrigin).getNormalized();
                 ez = ex.getCrossed(ey).getNormalized();
                 
-                planeMat.setTranslation(wOrigin);
-                planeMat.set(ex.x, ey.x, ez.x, wOrigin.x,
-                             ex.y, ey.y, ez.y, wOrigin.y,
-                             ex.z, ey.z, ez.z, wOrigin.z,
-                             0, 0, 0, 1);
-                planeInvMat = planeMat.getInverse();
+                discMat.setTranslation(wOrigin);
+                discMat.set(ex.x, ey.x, ez.x, wOrigin.x,
+                            ex.y, ey.y, ez.y, wOrigin.y,
+                            ex.z, ey.z, ez.z, wOrigin.z,
+                            0, 0, 0, 1);
+                discInvMat = discMat.getInverse();
                 
                 useCalibrated = true;
                 restCalibrationFrames = -1;
                 
-                makePlaneMask();
+                makeDiscMask();
             }
             
         }
@@ -333,8 +455,14 @@ void ofApp::update(){
             dfReceiver.getNextMessage(m);
             
             string address = m.getAddress();
-            int value = m.getArgAsInt(0);
-            ofLogNotice() << "address:" << address << " value:" << value;
+            int frame = m.getArgAsInt(0);
+            
+            ofLogNotice() << "path:" << address << " value:" << frame;
+            
+            if (address == "/dragonframe/shoot" || address == "/dragonframe/position") {
+                currentFrame = frame;
+                loadHeightmap();
+            }
             
             if (address == "/dragonframe/shoot") {
                 doBeforeShoot();
@@ -344,44 +472,23 @@ void ofApp::update(){
         }
         
     }
+    
+    discController.update();
 }
 
-void ofApp::enableLight() {
-    ofLogNotice() << "update dmx" << (dmx.isConnected() ? " connedted" : " not connected")<< " front=" << ofToString(lightFront * 255, 0) << " back=" << ofToString(lightBack * 255, 0);
-    dmx.setLevel(1, lightFront * 255);
-    dmx.setLevel(2, lightBack * 255);
-    dmx.update();
-}
-
-void ofApp::disableLight() {
-    dmx.setLevel(1, 0);
-    dmx.setLevel(2, 0);
-    dmx.update();
-}
-
-void ofApp::doBeforeShoot() {
-    enableLight();
-    isShooting = true;
-}
-
-void ofApp::doAfterShoot() {
-    disableLight();
-    isShooting = false;
-}
-
-//--------------------------------------------------------------
 void ofApp::updateScene() {
     focus.set(kinect.getFocus());
     
     int w = DEPTH_WIDTH;
     int h = DEPTH_HEIGHT;
     int x, y, offset;
-    float value, invalid;
+    float value, invalid, dist, vel;
     
     for (y = 0; y < h; y++) {
         for (x = 0; x < w; x++) {
             
-            float dist = kinect.getDistanceAt(x, y);
+            dist = kinect.getDistanceAt(x, y);
+            vel = kinect.getVelocityAt(x, y);
             offset = (y * w + x) * 3;
             
             if(near < dist && dist < far) {
@@ -390,12 +497,11 @@ void ofApp::updateScene() {
             } else {
                 value = 0.0f;
                 invalid = 1.0f;
-                
-                
             }
+            
             depthPixels[offset    ] = value;
             depthPixels[offset + 1] = invalid;
-            depthPixels[offset + 2] = 0.0f;
+            depthPixels[offset + 2] = vel;
         }
     }
     
@@ -403,51 +509,6 @@ void ofApp::updateScene() {
     depthImage.setFromPixels(depthPixels);
 }
 
-//--------------------------------------------------------------
-void ofApp::drawScene() {
-//    view3d.begin();
-    
-    ofBackground(0);
-    ofSetColor(255);
-    
-    ofEnableDepthTest();
-    camera.begin();
-    {
-        ofDrawAxis(200);
-        
-        ofSetColor(255);
-        
-        pointShader.begin();
-        pointShader.setUniform2f("resolution", DEPTH_WIDTH, DEPTH_HEIGHT);
-        pointShader.setUniform1f("near", near);
-        pointShader.setUniform1f("far", far);
-        pointShader.setUniform2f("focus", focus.x, focus.y);
-        pointShader.setUniformTexture("depth", depthImage, 0);
-        pointShader.setUniformTexture("irTex", irTex, 1);
-        pointShader.setUniform1f("planeMaskThreshold", planeMaskThreshold);
-        mesh.draw();
-        pointShader.end();
-        
-        ofSetColor(255);
-        ofDrawCircle(wOrigin, 0.3);
-        
-        ofSetColor(255, 0, 0);
-        ofDrawCircle(wAxisX, 0.3);
-        ofDrawLine(planeMat * ofVec3f(), planeMat * ofVec3f(1, 0, 0));
-        
-        ofSetColor(0, 255, 0);
-        ofDrawCircle(wAxisY, 0.3);
-        ofDrawLine(planeMat * ofVec3f(), planeMat * ofVec3f(0, 1, 0));
-        
-        ofSetColor(0, 0, 255);
-        ofDrawLine(planeMat * ofVec3f(), planeMat * ofVec3f(0, 0, 1));
-    }
-    
-    ofSetColor(255);
-    
-    camera.end();
-    ofDisableDepthTest();
-}
 
 //--------------------------------------------------------------
 void ofApp::exit() {
@@ -463,30 +524,32 @@ string ofApp::getCurrentFeatureName() {
             return "axis x";
         case F_AXIS_Y:
             return "axis y";
+        case F_DISPLAY:
+            return "display";
     }
 }
 
-void ofApp::makePlaneMask() {
-    if (!planeMaskPixels.isAllocated()) {
-        planeMaskPixels.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, 1);
+void ofApp::makeDiscMask() {
+    if (!discMaskPixels.isAllocated()) {
+        discMaskPixels.allocate(DEPTH_WIDTH, DEPTH_HEIGHT, 1);
     }
     
-    float radius = max(kOrigin.distance(kAxisX), kOrigin.distance(kAxisY)) + planeMaskMargin;
+    float radius = max(kOrigin.distance(kAxisX), kOrigin.distance(kAxisY)) + discMaskMargin;
     
     ofVec2f p;
     for (p.y = 0; p.y < DEPTH_HEIGHT; p.y++) {
         for (p.x = 0; p.x < DEPTH_WIDTH; p.x++) {
             float dist = kOrigin.distance(p);
-            planeMaskPixels[p.y * DEPTH_WIDTH + p.x] = (dist <= radius) ? 255 : 0;
+            discMaskPixels[p.y * DEPTH_WIDTH + p.x] = (dist <= radius) ? 255 : 0;
         }
     }
     
-    planeMaskImage.setFromPixels(planeMaskPixels);
+    discMaskImage.setFromPixels(discMaskPixels);
 }
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-    ofClear(10);
+    ofBackground(20);
     ofSetColor(255);
     ofPushMatrix();
     
@@ -496,27 +559,26 @@ void ofApp::draw(){
     
     this->drawScene();
     
-    // draw kinect
-    if (irTex.isAllocated()) {
-        irShader.begin();
-        irTex.draw(0, 0);
-        irShader.end();
+    if (isDisplayIr) {
+        // draw ir
+        if (irTex.isAllocated()) {
+            irShader.begin();
+            irTex.draw(0, 0);
+            irShader.end();
+            
+            ofDrawLine(DEPTH_WIDTH / 2, 0, DEPTH_WIDTH / 2, DEPTH_HEIGHT);
+            ofDrawLine(0, DEPTH_HEIGHT / 2, DEPTH_WIDTH, DEPTH_HEIGHT / 2);
+        }
         
-        ofDrawLine(DEPTH_WIDTH / 2, 0, DEPTH_WIDTH / 2, DEPTH_HEIGHT);
-        ofDrawLine(0, DEPTH_HEIGHT / 2, DEPTH_WIDTH, DEPTH_HEIGHT / 2);
+        if (discMaskImage.isAllocated()) {
+            ofSetColor(255, 255, 0, 30);
+            discMaskImage.draw(0, 0);
+            ofSetColor(255);
+        }
+        ofTranslate(0, DEPTH_HEIGHT);
     }
     
-    if (planeMaskImage.isAllocated()) {
-        ofSetColor(255, 255, 0, 30);
-        planeMaskImage.draw(0, 0);
-        ofSetColor(255);
-    }
-    
-//    view3d.draw(DEPTH_WIDTH, 0);
-    
-    ofTranslate(0, DEPTH_HEIGHT);
-    
-    if (mode == MODE_CALIB_PLANE) {
+    if (mode == MODE_CALIBRATION) {
         
         drawCalibration();
 
@@ -536,13 +598,13 @@ void ofApp::drawCalibration() {
     
     
     ofTranslate(0, 20);
-    ofDrawBitmapString("MODE: calibrating plane", 10, 0);
+    ofDrawBitmapString("MODE: calibrating disc", 10, 0);
     
     ofTranslate(0, 20);
     ofDrawBitmapString("EDITING: " + getCurrentFeatureName(), 10, 0);
     
     ofTranslate(0, 20);
-    ofDrawBitmapString("KINECT: origin-" + toString(kOrigin) + " axisX-" + toString(kAxisX) + " axisY-" + toString(kAxisY) , 10, 0);
+    ofDrawBitmapString("KINECT: origin-" + toString(kOrigin) + " axisX-" + toString(kAxisX) + " axisY-" + toString(kAxisY) + " display-" + toString(hudOrigin), 10, 0);
     
     if (restCalibrationFrames > 0) {
         
@@ -553,7 +615,7 @@ void ofApp::drawCalibration() {
         
     } else {
         ofTranslate(0, 20);
-        ofDrawBitmapString("WORLD: origin-" + toString(wOrigin) + " axisX-" + toString(wAxisX) + " axisY-" + toString(wAxisY) , 10, 0);
+        ofDrawBitmapString("WORLD: origin-" + toString(wOrigin) + " axisX-" + toString(wAxisX) + " axisY-" + toString(wAxisY), 10, 0);
         ofTranslate(0, 20);
         
         ofDrawBitmapString("Radius X=" + ofToString((wx - wo).length(), 1) +
@@ -607,12 +669,56 @@ void ofApp::drawCalibration() {
         // draw center
         ofSetColor(255, 255, 0);
         ofDrawCircle(getProj(kinect.getWorldCoordinateAt(DEPTH_WIDTH / 2, DEPTH_HEIGHT / 2)), 3);
-
+        
+        // draw display origin
+        ofSetColor(0, 255, 255);
+        ofDrawRectangle(hudOrigin, hud.getWidth(), hud.getHeight());
     }
     secondWindow.end();
 }
 
 void ofApp::drawShooting() {
+    
+    discController.isRotating() ? ofSetColor(255, 0, 0) : ofSetColor(255);
+    ofDrawBitmapString("Disc Angle = " + ofToString(discController.getAngle(), 2), 10, 10);
+    
+    ofSetColor(255);
+    ofDrawBitmapString("Heightmap Angle = " + ofToString(heightmapRotation / (PI * 2) * 360, 2), 10, 30);
+    
+    timer.isEnabled() ? ofSetColor(255) : ofSetColor(0, 0, 255);
+    ofDrawBitmapString("Elapsed Time = " + timer.getTimeString(), 10, 50);
+    
+    ofTranslate(0, 60);
+    
+    if (heightmapLoader.isLoaded()) {
+        ofSetColor(255);
+        ofDrawBitmapString("frame=" + ofToString(currentFrame), 10, 20);
+        
+        if (isDisplayHeightmap) {
+            heightmapImage.draw(0, 40, 512, 512);
+            contourFinder.draw(0, 40, 512, 512);
+        }
+        ofSetColor(255);
+    } else {
+        ofSetColor(255, 0, 0);
+        ofDrawBitmapString("frame=" + ofToString(currentFrame), 10, 20);
+    }
+    
+    ofSetColor(255);
+    
+    // draw hud
+    hud.begin();
+    {
+        ofClear(0, 0, 0, 0);
+        
+        ofSetColor(255);
+        ofDrawBitmapString("Frame=" + ofToString(currentFrame), 10, 10);
+        ofDrawBitmapString("Elapsed=" + timer.getTimeString(), 10, 30);
+        ofDrawBitmapString("Disc Angle=" + ofToString(discController.getAngle(), 2), 10, 50);
+    }
+    hud.end();
+    
+    
     
     
     secondWindow.begin();
@@ -620,67 +726,215 @@ void ofApp::drawShooting() {
         ofBackground(0);
         ofPushMatrix();
         
-        if (irTex.isAllocated() && !isShooting && !isPreviewLight) {
+        
+        if (irTex.isAllocated() && !isPreviewLight) {
             
+            ofDrawBitmapString("CURRENT FRAME=" + ofToString(currentFrame), hudOrigin);
             int step = 1;
             int offset = 0;
+            float u, v;
             ofVec2f kCoord, pCoord;
-            ofVec3f wCoord, dCoord;
-            float h, dist;
+            ofVec3f wCoord;
+            
+            ofVec3f pos;
+            float h, th, mix;
             
             ofFloatPixelsRef irPixels = kinect.getIrPixelsRef();
             
             for (kCoord.y = 0; kCoord.y < DEPTH_HEIGHT; kCoord.y += step) {
                 for (kCoord.x = 0; kCoord.x < DEPTH_WIDTH; kCoord.x += step) {
                     offset = kCoord.y * DEPTH_WIDTH + kCoord.x;
-                    if (planeMaskPixels[offset] == 0 || irPixels[offset] < planeMaskThreshold) {
+                    
+                    /*
+                    if (discMaskPixels[offset] == 0 || irPixels[offset] < discMaskThreshold) {
                         continue;
                     }
+                     */
                     
                     wCoord.set( kinect.getWorldCoordinateAt(kCoord.x, kCoord.y) );
+                    heightmapMesh.setVertex(offset, wCoord);it
+                    
+                    
+                    /*
                     pCoord = getProj(wCoord);
+                    pos = getDisc(wCoord);
+
+                    h = pos.z;
+                    u = ofMap(pos.x, -30, 30, 0, HEIGHTMAP_WIDTH - 1, true);
+                    v = ofMap(pos.y, 30, -30, 0, HEIGHTMAP_WIDTH - 1, true);
                     
-                    dCoord = wCoord - wOrigin;
+                    th = (heightmapPixels[floor(v) * HEIGHTMAP_WIDTH + floor(u)]
+                          + heightmapPixels[floor(v) * HEIGHTMAP_WIDTH + ceil(u)]
+                          + heightmapPixels[ceil(v) * HEIGHTMAP_WIDTH + floor(u)]
+                          + heightmapPixels[ceil(v) * HEIGHTMAP_WIDTH + ceil(u)]) * 0.25;
+                    th = ofMap(th, 0, 1, 0, HEIGHTMAP_DEPTH);
                     
-                    h = getPlane(wCoord).z;
-                    dist = abs(h - TH);
-                    
-                    if (h < 0 || 20 < h) {
+                    if (0 <= h && h <= 20) {
                         
-                    } else {
-                        
-                        if (dist < 0.3) {
-                            ofSetColor(0, 255, 0);
+                        if (th < h) {
+                            mix = ofMap(h, th, th + tolerance, 0, 255, true);
+                            heightmapMesh.setColor(offset, ofColor(mix, 255 - mix, 0));
                         } else {
-                            float lum = ofMap(dist, 0, 10, 0, 255);
-                            if (h > TH) { // too high
-                                ofSetColor(255, 0, 0);
-                            } else { // too low
-                                ofSetColor(0, 0, 255);
-                            }
+                            mix = ofMap(h, th, th - tolerance, 0, 255, true);
+                            heightmapMesh.setColor(offset, ofColor(0, 255 - mix, mix));
                         }
-                        ofDrawRectangle(pCoord, 1, 1);
+                        
+//                        heightmapMesh.setVertex(offset, ofVec3f(pCoord.x, pCoord.y, 0));
+                        
+                    
                     }
+                     */
                 }
             }
             
             ofSetColor(255);
+            heightmapShader.begin();
+            
+            vector<double> coffs = kpt.getCalibration();
+            
+            heightmapShader.setUniformMatrix4f("discInvMat", discInvMat);
+            heightmapShader.setUniform2f("projectorSize", 1280, 720);
+            heightmapShader.setUniform2f("projectorOffset", -96, 0);
+            
+            heightmapShader.setUniform1f("coff0", coffs[0]);
+            heightmapShader.setUniform1f("coff1", coffs[1]);
+            heightmapShader.setUniform1f("coff2", coffs[2]);
+            heightmapShader.setUniform1f("coff3", coffs[3]);
+            heightmapShader.setUniform1f("coff4", coffs[4]);
+            heightmapShader.setUniform1f("coff5", coffs[5]);
+            heightmapShader.setUniform1f("coff6", coffs[6]);
+            heightmapShader.setUniform1f("coff7", coffs[7]);
+            heightmapShader.setUniform1f("coff8", coffs[8]);
+            heightmapShader.setUniform1f("coff9", coffs[9]);
+            heightmapShader.setUniform1f("coff10", coffs[10]);
+            
+            heightmapMesh.draw();
+            heightmapShader.end();
+         
+            
+            
+            ofSetColor(255);
+            for (auto blob : contourFinder.blobs) {
+                contour.clear();
+                
+                bool isFirst = true;
+                
+                for (auto p : blob.pts ) {
+                    ofVec3f wc = getWorldFromDisc(ofVec2f(ofMap(p.x, 0, HEIGHTMAP_WIDTH, -30, 30),
+                                                  ofMap(p.y, 0, HEIGHTMAP_WIDTH, 30, -30)));
+                    ofVec2f pc = getProj(wc);
+                    
+                    if (isFirst) {contour.moveTo(pc); isFirst = false;}
+                    else {contour.lineTo(pc);}
+                    
+//                    ofDrawRectangle(pc.x, pc.y, 10, 10);
+                }
+                contour.close();
+                contour.draw();
+            }
+            
+            // draw angle
+            float rad = heightmapRotation;
+            ofVec2f rotOrigin = getProjFromDisc(cos(rad) * 30, sin(rad) * 30);
+            ofSetColor(255);
+            ofDrawCircle(rotOrigin, 2);
+            
+            // draw hud
+            ofSetColor(255);
+            hud.draw(hudOrigin);
+            
             
         }
         
         ofPopMatrix();
     }
     secondWindow.end();
+    
+    
+    
+}
+
+void ofApp::drawScene() {
+    //    view3d.begin();
+    
+    ofBackground(0);
+    ofSetColor(255);
+    
+    ofEnableDepthTest();
+    camera.begin();
+    {
+        ofDrawAxis(200);
+        
+        ofSetColor(255);
+        
+        pointShader.begin();
+        pointShader.setUniform2f("resolution", DEPTH_WIDTH, DEPTH_HEIGHT);
+        pointShader.setUniform1f("near", near);
+        pointShader.setUniform1f("far", far);
+        pointShader.setUniform2f("focus", focus.x, focus.y);
+        pointShader.setUniformTexture("depth", depthImage, 0);
+        pointShader.setUniformTexture("irTex", irTex, 1);
+        pointShader.setUniform1f("discMaskThreshold", discMaskThreshold);
+        depthPointCloud.draw();
+        pointShader.end();
+        
+        ofSetColor(255);
+        ofDrawCircle(wOrigin, 0.3);
+        
+        ofSetColor(255, 0, 0);
+        ofDrawCircle(wAxisX, 0.3);
+        ofDrawLine(discMat * ofVec3f(), discMat * ofVec3f(1, 0, 0));
+        
+        ofSetColor(0, 255, 0);
+        ofDrawCircle(wAxisY, 0.3);
+        ofDrawLine(discMat * ofVec3f(), discMat * ofVec3f(0, 1, 0));
+        
+        ofSetColor(0, 0, 255);
+        ofDrawLine(discMat * ofVec3f(), discMat * ofVec3f(0, 0, 1));
+    }
+    
+    ofSetColor(255);
+    
+    camera.end();
+    ofDisableDepthTest();
 }
 
 //--------------------------------------------------------------
 ofVec2f ofApp::getProj(ofVec3f wc) {
     return kpt.getProjectedPoint(wc * ofVec3f(1, 1, -1)) * ofVec2f(projectorWidth, projectorHeight) - ofVec2f(96, 0);
 
+
 }
 
-ofVec3f ofApp::getPlane(ofVec3f wc) {
-    return planeInvMat * wc;
+ofVec3f ofApp::getDisc(ofVec3f wc) {
+    return discInvMat * wc;
+}
+
+ofVec3f ofApp::getWorldFromDisc(ofVec2f dc) {
+    return discMat * ofVec3f(dc.x, dc.y, 0);
+}
+
+ofVec2f ofApp::getProjFromDisc(ofVec2f dc) {
+    return getProj(getWorldFromDisc(dc));
+}
+
+void ofApp::loadHeightmap() {
+    heightmapLoader.load(heightmapPixels, currentFrame);
+    if (heightmapLoader.isLoaded()) {
+        heightmapImage.setFromPixels(heightmapPixels);
+        
+        heightmapRotation = heightmapPixels[0] * PI * 2;
+        
+        int x, y;
+        
+        for (int i = 0, len = HEIGHTMAP_WIDTH * HEIGHTMAP_WIDTH; i < len; i++) {
+            heightmapU8Pixels[i] = (unsigned char)(heightmapPixels[i] * 255);
+        }
+        
+        heightmapCvImage.setFromPixels(heightmapU8Pixels);
+        heightmapCvImage.threshold(1);
+        contourFinder.findContours(heightmapCvImage, 2, HEIGHTMAP_WIDTH * HEIGHTMAP_WIDTH, 20, true);
+    }
 }
 
 //--------------------------------------------------------------
@@ -704,21 +958,15 @@ void ofApp::moveFeature(float x, float y) {
         kAxisX += ofVec2f(x, y) * amp;
     } else if (currentFeature == F_AXIS_Y) {
         kAxisY += ofVec2f(x, y) * amp;
+    } else if (currentFeature == F_DISPLAY) {
+        hudOrigin += ofVec2f(x, y) * amp * 10;
     }
 }
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
     
-    if (key == OF_KEY_LEFT_ALT) {
-        altPressed = true;
-        ofLogNotice() << "alt!";
-    }
-    if (key == OF_KEY_LEFT_SHIFT) {
-        shiftPressed = true;
-    }
-    
-    if (mode == MODE_CALIB_PLANE) {
+    if (mode == MODE_CALIBRATION) {
         
         switch (key) {
             case OF_KEY_LEFT:   moveFeature(-1,  0); break;
@@ -729,6 +977,7 @@ void ofApp::keyPressed(int key){
             case '1': currentFeature = F_ORIGIN; break;
             case '2': currentFeature = F_AXIS_X; break;
             case '3': currentFeature = F_AXIS_Y; break;
+            case '4': currentFeature = F_DISPLAY; break;
                 
             case 'c':
                 wOrigin.set(0, 0, 0);
@@ -745,26 +994,52 @@ void ofApp::keyPressed(int key){
     } else if (mode == MODE_SHOOTING) {
         
         switch (key) {
+                
+            case '5':  lightBack = ofClamp(lightBack + LIGHT_STEP, 0, 1); sendDmx(); break;
+            case '2':  lightBack = ofClamp(lightBack - LIGHT_STEP, 0, 1); sendDmx(); break;
+            case '4':  lightFront = ofClamp(lightFront + LIGHT_STEP, 0, 1); sendDmx(); break;
+            case '1':  lightFront = ofClamp(lightFront - LIGHT_STEP, 0, 1); sendDmx(); break;
+                
+            case 'd':
+                isDisplayHeightmap = !isDisplayHeightmap;
+                break;
         }
-        
     }
     
-
-    
     switch (key) {
+        case OF_KEY_LEFT_ALT: altPressed = true; break;
+        case OF_KEY_LEFT_SHIFT: shiftPressed = true; break;
+        
+        case 't':
+            if (mode == MODE_SHOOTING) mode = MODE_CALIBRATION;
+            else if (mode == MODE_CALIBRATION) mode = MODE_SHOOTING;
+            break;
+            
+        case 'i':
+            isDisplayIr = !isDisplayIr;
+            break;
+            
+        case 'l':
+            if (isPreviewLight) {
+                disableLight();
+            } else {
+                enableLight();
+            }
+            break;
+            
         case 'f':
             ofToggleFullscreen();
             break;
+            
+        case 'r':
+            discController.rotate(rotateStep);
     }
     
 }
 
 void ofApp::keyReleased(int key) {
-    if (key == OF_KEY_LEFT_ALT) {
-        altPressed = false;
-    }
-    
-    if (key == OF_KEY_LEFT_SHIFT) {
-        shiftPressed = false;
+    switch (key) {
+        case OF_KEY_LEFT_ALT: altPressed = false; break;
+        case OF_KEY_LEFT_SHIFT: shiftPressed = false; break;
     }
 }

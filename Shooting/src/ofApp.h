@@ -5,26 +5,34 @@
 #include "ofxDatGui.h"
 #include "ofxJSON.h"
 #include "ofxCv.h"
+#include "ofxOpenCv.h"
 #include "ofxSecondWindow.h"
 #include "ofxKinectProjectorToolkitV2.h"
 #include "ofxGrabCam.h"
 #include "ofxDmx.h"
 #include "ofxOsc.h"
+#include "ofxImageSequenceLoader.h"
+#include "ofxStopwatch.h"
+
+#include "DiscController.h"
 
 #include "Config.h"
 
-#define MODE_CALIB_PLANE    1
+#define MODE_CALIBRATION    1
 #define MODE_SHOOTING       2
 
 #define F_ORIGIN            0
 #define F_AXIS_X            1
 #define F_AXIS_Y            2
+#define F_DISPLAY           3
 
 class ofApp : public ofBaseApp{
 
 public:
 	void setup();
 	void update();
+    
+    void initShooting();
     
     void initScene();
     void updateScene();
@@ -51,10 +59,13 @@ public:
     // calibration
     string getCurrentFeatureName();
     void moveFeature(float x, float y);
-    void makePlaneMask();
+    void makeDiscMask();
     
     ofVec2f getProj(ofVec3f wc);
-    ofVec3f getPlane(ofVec3f wc);
+    ofVec3f getDisc(ofVec3f wc);
+    ofVec3f getWorldFromDisc(ofVec2f dc);
+    ofVec2f getProjFromDisc(ofVec2f dc);
+    ofVec2f getProjFromDisc(float x, float y) { return getProjFromDisc(ofVec2f(x, y)); }
     
     // util
     string toString(ofVec2f val);
@@ -65,7 +76,7 @@ public:
     ofFbo               view3d;
     ofxGrabCam          camera;
     ofShader            pointShader;
-    ofMesh              mesh;
+    ofMesh              depthPointCloud;
     ofFloatPixels       depthPixels;
     ofFloatImage        depthImage;
     
@@ -76,7 +87,7 @@ public:
     ofShader            depthShader, irShader;
     ofTexture           depthTex, irTex, colorTex;
     
-    int                 mode = MODE_CALIB_PLANE;
+    int                 mode = MODE_CALIBRATION;
     int                 currentFeature = F_ORIGIN;
     
     int                 restCalibrationFrames = -1;
@@ -90,38 +101,66 @@ public:
     bool                altPressed = false;
     bool                shiftPressed = false;
     
-    ofMesh              heightmap;
     
-    ofPixels            planeMaskPixels;
-    ofImage             planeMaskImage;
+    ofPixels            discMaskPixels;
+    ofImage             discMaskImage;
     
     // parameters
     ofxDatGui*          gui;
     float               projectorWidth, projectorHeight;
     ofVec2f             kOrigin, kAxisX, kAxisY;
     ofVec3f             wOrigin, wAxisX, wAxisY;
-    ofMatrix4x4         planeMat, planeInvMat;
-    float               planeMaskMargin;
+    ofMatrix4x4         discMat, discInvMat;
+    float               discMaskMargin;
+    bool                isDisplayIr;
     
     float				near, far; // cm
     ofVec2f             focus;
     
-    float               planeMaskThreshold;
+    float               discMaskThreshold;
     
     //------------------------------------
     // shooting
+    void                sendDmx();
     void                enableLight();
     void                disableLight();
     
     void                doBeforeShoot();
     void                doAfterShoot();
+    void                loadHeightmap();
+    
+    ofMesh              heightmapMesh;
+    ofShader            heightmapShader;
+    
+    ofPath              contour;
+    
+    ofVec2f             hudOrigin;
+    
+    ofxImageSequenceLoader heightmapLoader;
+    
+    float               tolerance;
+    int                 currentFrame = -1;
+    bool                isDisplayHeightmap;
+    
+    ofFloatPixels       heightmapPixels;
+    ofPixels            heightmapU8Pixels;
+    ofFloatImage        heightmapImage;
+    ofxCvGrayscaleImage  heightmapCvImage;
+    
+    ofxCvContourFinder contourFinder;
     
     ofxDmx              dmx;
     float               lightFront, lightBack;
-    bool                isPreviewLight;
-    bool                isShooting = false;
+    bool                isPreviewLight = false;
     
     ofxOscReceiver      dfReceiver;
     
-
+    DiscController      discController;
+    float               heightmapRotation;
+    float               rotateStep; // degrees
+    
+    ofFbo               hud;
+    
+    // timer
+    ofxStopwatch        timer;
 };

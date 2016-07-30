@@ -8,8 +8,7 @@ uniform vec2 focus;
 uniform float planeMaskThreshold;
 
 varying float opacity;
-varying float luminance;
-
+varying float velocity;
 
 void main() {
 	
@@ -18,13 +17,14 @@ void main() {
 	uv.y = 424.0 - uv.y;
 	vec4 color = texture2DRect(depth, uv);
 
-	luminance = color.r;
-	float d = (1.0 - luminance) * (far - near) + near;
+	float d = (1.0 - color.r) * (far - near) + near;
 	opacity = 1.0 - color.g;
 
 	if (texture2DRect(irTex, uv).r < planeMaskThreshold) {
 		opacity = 0.0;
 	}
+
+	velocity = color.b / 100.0;
 
 	vec4 position = vec4(
 			gl_Vertex.x * d / focus.x,
