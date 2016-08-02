@@ -180,17 +180,12 @@ void ofxMultiKinectV2Mod::update()
         
         if (depthPixDistance.isAllocated()) {
             for (int i = 0, len = 512 * 424; i < len; i++) {
-                depthPixVelocity[i] = depthPixBack[i] - depthPix[i];
-                if (abs(depthPixVelocity[i]) < velocityThreshold) {
-                    depthPixDistance[i] = depthPix[i] * feedbackRate + depthPixDistance[i] * (1 - feedbackRate);
-                }
+                depthPixDistance[i] = depthPix[i] * feedbackRate + depthPixDistance[i] * (1 - feedbackRate);
             }
         } else {
             depthPixDistance.allocate(512, 424, 1);
-            depthPixVelocity.allocate(512, 424, 1);
             for (int i = 0, len = 512 * 424; i < len; i++) {
                 depthPixDistance[i] = depthPix[i];
-                depthPixVelocity[i] = 0.0f;
             }
         }
         
@@ -233,13 +228,6 @@ ofFloatPixels& ofxMultiKinectV2Mod::getIrPixelsRef() {
 
 const vector<char>& ofxMultiKinectV2Mod::getJpegBuffer() {
     return jpeg;
-}
-
-float ofxMultiKinectV2Mod::getVelocityAt(int x, int y) {
-    if (!depthPixVelocity.isAllocated()) {
-        return 0.0f;
-    }
-    return depthPixVelocity[x + y * depthPixVelocity.getWidth()];
 }
 
 float ofxMultiKinectV2Mod::getDistanceAt(int x, int y) {

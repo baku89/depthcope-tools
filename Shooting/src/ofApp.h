@@ -137,14 +137,15 @@ public:
     ofVec2f             hudOrigin;
     
     ofxImageSequenceLoader heightmapLoader;
+    ofxImageSequenceLoader overlayLoader;
     
     float               tolerance;
     int                 currentFrame = -1;
     bool                isDisplayHeightmap;
     
-    ofFloatPixels       heightmapPixels;
+    ofFloatPixels       heightmapPixels, overlayPixels;
     ofPixels            heightmapU8Pixels;
-    ofFloatImage        heightmapImage;
+    ofFloatImage        heightmapImage, overlayImage;
     ofxCvGrayscaleImage  heightmapCvImage;
     
     ofxCvContourFinder contourFinder;
@@ -152,10 +153,11 @@ public:
     ofxDmx              dmx;
     float               lightFront, lightBack;
     bool                isPreviewLight = false;
+    bool                showOverlay;
     
     ofxOscReceiver      dfReceiver;
     
-    DiscController      discController;
+//    DiscController      discController;
     float               heightmapRotation;
     float               rotateStep; // degrees
     

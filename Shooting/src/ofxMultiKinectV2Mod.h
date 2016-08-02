@@ -46,12 +46,9 @@ public:
     ofVec3f getWorldCoordinateAt(int x, int y);
     ofVec3f getWorldCoordinateAt(int x, int y, float z);
     
-    float getVelocityAt(int x, int y);
-    
     ofVec2f getFocus();
     
     float feedbackRate = 0.1;
-    float velocityThreshold = 3.0;
     
 protected:
     void threadedFunction();
@@ -76,7 +73,7 @@ protected:
     ofFloatPixels irPixFront;
     ofFloatPixels irPixBack;
     
-    ofFloatPixels depthPix, depthPixDistance, depthPixVelocity;
+    ofFloatPixels depthPix, depthPixDistance;
     ofFloatPixels depthPixFront;
     ofFloatPixels depthPixBack;
     

@@ -57,10 +57,13 @@ void ofApp::initShooting() {
     
     dfReceiver.setup(1234);
     
-    heightmapLoader.setup("/Volumes/MugiRAID1/Works/2016/26_techne/render/heightmap/heightmap_depth####.exr");
+    heightmapLoader.setup("/Users/mugi/Works/2016/26_techne(mac)/render/heightmap/heightmap_overlay_depth####.exr");
     heightmapPixels.allocate(HEIGHTMAP_WIDTH, HEIGHTMAP_WIDTH, 1);
     heightmapU8Pixels.allocate(HEIGHTMAP_WIDTH, HEIGHTMAP_WIDTH, 1);
     heightmapCvImage.allocate(HEIGHTMAP_WIDTH, HEIGHTMAP_WIDTH);
+    
+    overlayLoader.setup("/Users/mugi/Works/2016/26_techne(mac)/render/heightmap/heightmap_overlay####.png");
+    overlayPixels.allocate(HEIGHTMAP_WIDTH, HEIGHTMAP_WIDTH, 1);
     
     loadHeightmap();
     
@@ -88,8 +91,11 @@ void ofApp::initShooting() {
     
     heightmapMesh = plane.getMesh();
     
-    for (int i = 0, len = DEPTH_WIDTH * DEPTH_HEIGHT; i < len; i++) {
-        heightmapMesh.addColor(ofColor(255));
+    for (y = 0; y < h; y++) {
+        for (x = 0; x < w; x++) {
+            heightmapMesh.addColor(ofColor(255));
+            heightmapMesh.setTexCoord(y * w + x, ofVec2f(x, y));
+        }
     }
     
 //    heightmapMesh.setPosition(1280/2, 720/2, 0);
@@ -97,17 +103,9 @@ void ofApp::initShooting() {
     ofLogNotice() << "vertices=" << heightmapMesh.getVertices().size();
     ofLogNotice() << "indices=" << heightmapMesh.getIndices().size();
     ofLogNotice() << "colors=" << heightmapMesh.getColors().size();
-    
-//    for (y = 0; y < 10; y++) {
-//        for (x = 0; x < 10; x++) {
-//            ofVec3f v = heightmapMesh.getVertex(y * DEPTH_WIDTH + x);
-//            cout << "[" << x << ", " << y << "] = " << ofToString(v.x, 4) << "\t" << ofToString(v.y, 4) << endl;
-//        }
-//    }
+    ofLogNotice() << "texCoords=" << heightmapMesh.getTexCoords().size();
     
     heightmapShader.load("heightmap");
-    
-    discController.setup("/dev/cu.usbmodem411", 0);
 }
 
 //--------------------------------------------------------------
@@ -166,15 +164,15 @@ void ofApp::loadGui() {
     gui->addBreak()->setHeight(30.0f);
     ofxDatGuiFolder* shooting = gui->addFolder("shooting");
     shooting->addButton("switch shooting mode");
-    shooting->addSlider("feedback rate", 0, 0.2)->bind(kinect.feedbackRate);
+    shooting->addSlider("feedback rate", 0, 0.6)->bind(kinect.feedbackRate);
     shooting->addSlider("tolerance (cm)", 0, 1)->bind(tolerance);
     shooting->addToggle("display heightmap")->bind(isDisplayHeightmap);
-    shooting->addSlider("velocity threshold", 0, 6)->bind(kinect.velocityThreshold);
     shooting->addToggle("preview light")->bind(isPreviewLight);
     shooting->addSlider("light front", 0, 1)->bind(lightFront);
-    shooting->addSlider("light front", 0, 1)->bind(lightBack);
+    shooting->addSlider("light back", 0, 1)->bind(lightBack);
     shooting->addSlider("rotate step", 0, 360)->bind(rotateStep);
     shooting->addToggle("enable timer");
+    shooting->addToggle("show overly")->bind(showOverlay);
     shooting->expand();
     
     gui->onToggleEvent(this, &ofApp::onToggleEvent);
@@ -245,7 +243,6 @@ void ofApp::loadGui() {
         
         tolerance = settings["shooting"].get("torelance", 0.5).asFloat();
         isDisplayHeightmap = settings["shooting"].get("isDisplayHeightmap", true).asBool();
-        kinect.velocityThreshold = settings["shooting"].get("velocityThreshold", 3.0).asFloat();
         
         isPreviewLight = settings["shooting"].get("isPreviewLight", false).asBool();
         lightFront = settings["shooting"].get("lightFront", 1.0).asFloat();
@@ -257,10 +254,10 @@ void ofApp::loadGui() {
                           settings["shooting"]["hudOrigin"].get((Json::ArrayIndex)1, 0).asFloat());
         
         rotateStep = settings["shooting"].get("rotateStep", 1).asFloat();
-        discController.setAngle( settings["shooting"].get("discAngle", 0).asFloat() );
         
         timer.toggle( settings["shooting"].get("enableTimer", false).asBool() );
-        timer.reset( settings["elapsedTime"].get("elapsedTime", 0).asFloat() );
+        timer.reset( settings["shooting"].get("elapsedTime", 0).asFloat() );
+        showOverlay = settings["shooting"].get("showOverlay", true).asBool();
     }
 }
 
@@ -355,18 +352,17 @@ void ofApp::saveGui() {
     // shooting
     settings["shooting"]["feedbackRate"] = kinect.feedbackRate;
     settings["shooting"]["isDisplayHeightmap"] = isDisplayHeightmap;
-    settings["shooting"]["velocityThreshold"] = kinect.velocityThreshold;
     
     settings["shooting"]["isPreviewLight"] = isPreviewLight;
     settings["shooting"]["lightFront"] = lightFront;
-    settings["shooting"]["lightFront"] = lightBack;
+    settings["shooting"]["lightBack"] = lightBack;
     settings["shooting"]["rotateStep"] = rotateStep;
     
     settings["shooting"]["currentFrame"] = currentFrame;
     settings["shooting"]["hudOrigin"][0] = hudOrigin.x;
     settings["shooting"]["hudOrigin"][1] = hudOrigin.y;
-    settings["shooting"]["discAngle"] = discController.getAngle();
     settings["shooting"]["enableTimer"] = timer.isEnabled();
+    settings["shooting"]["showOverlay"] = showOverlay;
     
     settings.save("settings.json");
 	
@@ -472,23 +468,21 @@ void ofApp::update(){
         }
         
     }
-    
-    discController.update();
 }
 
 void ofApp::updateScene() {
     focus.set(kinect.getFocus());
     
+    
     int w = DEPTH_WIDTH;
     int h = DEPTH_HEIGHT;
     int x, y, offset;
-    float value, invalid, dist, vel;
+    float value, invalid, dist;
     
     for (y = 0; y < h; y++) {
         for (x = 0; x < w; x++) {
             
             dist = kinect.getDistanceAt(x, y);
-            vel = kinect.getVelocityAt(x, y);
             offset = (y * w + x) * 3;
             
             if(near < dist && dist < far) {
@@ -501,7 +495,7 @@ void ofApp::updateScene() {
             
             depthPixels[offset    ] = value;
             depthPixels[offset + 1] = invalid;
-            depthPixels[offset + 2] = vel;
+            depthPixels[offset + 2] = 0.0;
         }
     }
     
@@ -679,11 +673,8 @@ void ofApp::drawCalibration() {
 
 void ofApp::drawShooting() {
     
-    discController.isRotating() ? ofSetColor(255, 0, 0) : ofSetColor(255);
-    ofDrawBitmapString("Disc Angle = " + ofToString(discController.getAngle(), 2), 10, 10);
-    
     ofSetColor(255);
-    ofDrawBitmapString("Heightmap Angle = " + ofToString(heightmapRotation / (PI * 2) * 360, 2), 10, 30);
+    ofDrawBitmapString("Disc Angle = " + ofToString(heightmapRotation / (PI * 2) * 360, 2), 10, 30);
     
     timer.isEnabled() ? ofSetColor(255) : ofSetColor(0, 0, 255);
     ofDrawBitmapString("Elapsed Time = " + timer.getTimeString(), 10, 50);
@@ -697,6 +688,7 @@ void ofApp::drawShooting() {
         if (isDisplayHeightmap) {
             heightmapImage.draw(0, 40, 512, 512);
             contourFinder.draw(0, 40, 512, 512);
+            overlayImage.draw(512, 40, 512, 512);
         }
         ofSetColor(255);
     } else {
@@ -713,13 +705,12 @@ void ofApp::drawShooting() {
         
         ofSetColor(255);
         ofDrawBitmapString("Frame=" + ofToString(currentFrame), 10, 10);
+        
+        timer.isEnabled() ? ofSetColor(255) : ofSetColor(0, 0, 255);
         ofDrawBitmapString("Elapsed=" + timer.getTimeString(), 10, 30);
-        ofDrawBitmapString("Disc Angle=" + ofToString(discController.getAngle(), 2), 10, 50);
+        ofDrawBitmapString("Disc Angle=" + ofToString(heightmapRotation, 2), 10, 50);
     }
     hud.end();
-    
-    
-    
     
     secondWindow.begin();
     {
@@ -752,38 +743,7 @@ void ofApp::drawShooting() {
                      */
                     
                     wCoord.set( kinect.getWorldCoordinateAt(kCoord.x, kCoord.y) );
-                    heightmapMesh.setVertex(offset, wCoord);it
-                    
-                    
-                    /*
-                    pCoord = getProj(wCoord);
-                    pos = getDisc(wCoord);
-
-                    h = pos.z;
-                    u = ofMap(pos.x, -30, 30, 0, HEIGHTMAP_WIDTH - 1, true);
-                    v = ofMap(pos.y, 30, -30, 0, HEIGHTMAP_WIDTH - 1, true);
-                    
-                    th = (heightmapPixels[floor(v) * HEIGHTMAP_WIDTH + floor(u)]
-                          + heightmapPixels[floor(v) * HEIGHTMAP_WIDTH + ceil(u)]
-                          + heightmapPixels[ceil(v) * HEIGHTMAP_WIDTH + floor(u)]
-                          + heightmapPixels[ceil(v) * HEIGHTMAP_WIDTH + ceil(u)]) * 0.25;
-                    th = ofMap(th, 0, 1, 0, HEIGHTMAP_DEPTH);
-                    
-                    if (0 <= h && h <= 20) {
-                        
-                        if (th < h) {
-                            mix = ofMap(h, th, th + tolerance, 0, 255, true);
-                            heightmapMesh.setColor(offset, ofColor(mix, 255 - mix, 0));
-                        } else {
-                            mix = ofMap(h, th, th - tolerance, 0, 255, true);
-                            heightmapMesh.setColor(offset, ofColor(0, 255 - mix, mix));
-                        }
-                        
-//                        heightmapMesh.setVertex(offset, ofVec3f(pCoord.x, pCoord.y, 0));
-                        
-                    
-                    }
-                     */
+                    heightmapMesh.setVertex(offset, wCoord);
                 }
             }
             
@@ -792,9 +752,20 @@ void ofApp::drawShooting() {
             
             vector<double> coffs = kpt.getCalibration();
             
+            heightmapShader.setUniformTexture("heightmap", heightmapImage.getTexture(), 1);
             heightmapShader.setUniformMatrix4f("discInvMat", discInvMat);
             heightmapShader.setUniform2f("projectorSize", 1280, 720);
             heightmapShader.setUniform2f("projectorOffset", -96, 0);
+            heightmapShader.setUniform1f("tolerance", tolerance);
+            
+//            heightmapShader.setUniformi
+            heightmapShader.setUniform1i("showOverlay", showOverlay ? 1 : 0);
+            heightmapShader.setUniformTexture("overlay", overlayImage.getTexture(), 2);
+            
+//            heightmapShader.setUniformTexture("depth", depthImage, 0);
+//            heightmapShader.setUniform2f("focus", focus.x, focus.y);
+//            heightmapShader.setUniform1f("near", near);
+//            heightmapShader.setUniform1f("far", far);
             
             heightmapShader.setUniform1f("coff0", coffs[0]);
             heightmapShader.setUniform1f("coff1", coffs[1]);
@@ -810,6 +781,9 @@ void ofApp::drawShooting() {
             
             heightmapMesh.draw();
             heightmapShader.end();
+            
+//            ofDrawLine(projectorWidth / 2, 0, projectorWidth / 2, projectorHeight);
+//            ofDrawLine(0, projectorHeight / 2, projectorWidth, projectorHeight / 2);
          
             
             
@@ -920,10 +894,11 @@ ofVec2f ofApp::getProjFromDisc(ofVec2f dc) {
 
 void ofApp::loadHeightmap() {
     heightmapLoader.load(heightmapPixels, currentFrame);
+    
     if (heightmapLoader.isLoaded()) {
         heightmapImage.setFromPixels(heightmapPixels);
         
-        heightmapRotation = heightmapPixels[0] * PI * 2;
+        heightmapRotation = heightmapPixels[3 * HEIGHTMAP_WIDTH + 3] * PI * 2;
         
         int x, y;
         
@@ -934,6 +909,11 @@ void ofApp::loadHeightmap() {
         heightmapCvImage.setFromPixels(heightmapU8Pixels);
         heightmapCvImage.threshold(1);
         contourFinder.findContours(heightmapCvImage, 2, HEIGHTMAP_WIDTH * HEIGHTMAP_WIDTH, 20, true);
+    }
+    
+    overlayLoader.load(overlayPixels, currentFrame);
+    if (overlayLoader.isLoaded()) {
+        overlayImage.setFromPixels(overlayPixels);
     }
 }
 
@@ -1003,6 +983,19 @@ void ofApp::keyPressed(int key){
             case 'd':
                 isDisplayHeightmap = !isDisplayHeightmap;
                 break;
+                
+            case 'o':
+                showOverlay = !showOverlay;
+                break;
+                
+            case 'n':
+                currentFrame += 1;
+                loadHeightmap();
+                break;
+            case 'p':
+                currentFrame -= 1;
+                loadHeightmap();
+                break;
         }
     }
     
@@ -1030,9 +1023,6 @@ void ofApp::keyPressed(int key){
         case 'f':
             ofToggleFullscreen();
             break;
-            
-        case 'r':
-            discController.rotate(rotateStep);
     }
     
 }
