@@ -25,6 +25,7 @@ uniform sampler2DRect heightmap;
 uniform sampler2DRect overlay;
 
 uniform int showOverlay;
+uniform int showHeightmap;
 
 // uniform sampler2DRect depth;
 // uniform vec2 focus;
@@ -71,17 +72,21 @@ void main() {
 	float th = texture2DRect(heightmap, duv).r * 30.0;
 	float h  = dc.z;
 
+	color = vec4(0.0, 0.0, 0.0, 1.0);
+
 	if (0.0 <= h && h <= HEIGHTMAP_DEPTH) {
-		if (th < h) {
-			float m = map(h, th, th + tolerance, 0.0, 1.0);
-			color = vec4(m, 1.0 - m, 0.0, 1.0);
-		} else {
-			float m = map(h, th, th - tolerance, 0.0, 1.0);
-			color = vec4(0.0, 1.0 - m, m, 1.0);
+		if (showHeightmap == 1) {
+			if (th < h) {
+				float m = map(h, th, th + tolerance, 0.0, 1.0);
+				color += vec4(m, 1.0 - m, 0.0, 1.0);
+			} else {
+				float m = map(h, th, th - tolerance, 0.0, 1.0);
+				color += vec4(0.0, 1.0 - m, m, 1.0);
+			}
 		}
 
 		if (showOverlay == 1) {
-			color += texture2DRect(overlay, duv);
+			color += vec4(texture2DRect(overlay, duv).g);
 		}
 
 	} else {

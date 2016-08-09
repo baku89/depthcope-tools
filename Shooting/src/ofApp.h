@@ -113,6 +113,7 @@ public:
     ofMatrix4x4         discMat, discInvMat;
     float               discMaskMargin;
     bool                isDisplayIr;
+	bool				showScene;
     
     float				near, far; // cm
     ofVec2f             focus;
@@ -142,6 +143,7 @@ public:
     float               tolerance;
     int                 currentFrame = -1;
     bool                isDisplayHeightmap;
+	bool				forceDisplay = true;
     
     ofFloatPixels       heightmapPixels, overlayPixels;
     ofPixels            heightmapU8Pixels;
@@ -154,6 +156,7 @@ public:
     float               lightFront, lightBack;
     bool                isPreviewLight = false;
     bool                showOverlay;
+	bool				showHeightmap;
     
     ofxOscReceiver      dfReceiver;
     

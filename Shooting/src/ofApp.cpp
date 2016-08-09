@@ -6,7 +6,7 @@
 void ofApp::setup(){
     
     ofSetVerticalSync(true);
-    ofSetFrameRate(60);
+    ofSetFrameRate(30);
     ofSetWindowShape(1024, 576);
     ofSetWindowTitle("Calibration Control");
     ofSetWindowPosition(0, 0);
@@ -57,12 +57,12 @@ void ofApp::initShooting() {
     
     dfReceiver.setup(1234);
     
-    heightmapLoader.setup("/Users/mugi/Works/2016/26_techne(mac)/render/heightmap/heightmap_overlay_depth####.exr");
+    heightmapLoader.setup("/Users/mugi/Works/2016/26_techne/render/heightmap/heightmap_overlay_depth####.exr");
     heightmapPixels.allocate(HEIGHTMAP_WIDTH, HEIGHTMAP_WIDTH, 1);
     heightmapU8Pixels.allocate(HEIGHTMAP_WIDTH, HEIGHTMAP_WIDTH, 1);
     heightmapCvImage.allocate(HEIGHTMAP_WIDTH, HEIGHTMAP_WIDTH);
     
-    overlayLoader.setup("/Users/mugi/Works/2016/26_techne(mac)/render/heightmap/heightmap_overlay####.png");
+    overlayLoader.setup("/Users/mugi/Works/2016/26_techne/render/heightmap/heightmap_overlay####.exr");
     overlayPixels.allocate(HEIGHTMAP_WIDTH, HEIGHTMAP_WIDTH, 1);
     
     loadHeightmap();
@@ -152,6 +152,7 @@ void ofApp::loadGui() {
     scene->addSlider("near", 0, 300)->bind(near);
     scene->addSlider("far", 0, 300)->bind(far);
     scene->addToggle("show ir")->bind(isDisplayIr);
+	scene->addToggle("show scene")->bind(showScene);
     
     gui->addBreak()->setHeight(30.0f);
     ofxDatGuiFolder* disc = gui->addFolder("disc");
@@ -172,7 +173,9 @@ void ofApp::loadGui() {
     shooting->addSlider("light back", 0, 1)->bind(lightBack);
     shooting->addSlider("rotate step", 0, 360)->bind(rotateStep);
     shooting->addToggle("enable timer");
-    shooting->addToggle("show overly")->bind(showOverlay);
+	shooting->addToggle("show overlay")->bind(showOverlay);
+	shooting->addToggle("show heightmap")->bind(showHeightmap);
+	shooting->addToggle("force display")->bind(forceDisplay);
     shooting->expand();
     
     gui->onToggleEvent(this, &ofApp::onToggleEvent);
@@ -194,6 +197,7 @@ void ofApp::loadGui() {
         near = settings["scene"].get("near", 50).asFloat();
         far  = settings["scene"].get("far", 150).asFloat();
         isDisplayIr = settings["scene"].get("isDisplayIr", true).asBool();
+		showScene = settings["scene"].get("showScene", true).asBool();
         
         // disc
         kOrigin.x = settings["disc"]["origin"]["kinect"].get((Json::ArrayIndex)0, DEPTH_WIDTH / 2).asFloat();
@@ -241,7 +245,7 @@ void ofApp::loadGui() {
         // shooting
         kinect.feedbackRate = settings["shooting"].get("feedbackRate", 0.1).asFloat();
         
-        tolerance = settings["shooting"].get("torelance", 0.5).asFloat();
+        tolerance = settings["shooting"].get("tolerance", 0.5).asFloat();
         isDisplayHeightmap = settings["shooting"].get("isDisplayHeightmap", true).asBool();
         
         isPreviewLight = settings["shooting"].get("isPreviewLight", false).asBool();
@@ -257,7 +261,9 @@ void ofApp::loadGui() {
         
         timer.toggle( settings["shooting"].get("enableTimer", false).asBool() );
         timer.reset( settings["shooting"].get("elapsedTime", 0).asFloat() );
-        showOverlay = settings["shooting"].get("showOverlay", true).asBool();
+		showOverlay = settings["shooting"].get("showOverlay", true).asBool();
+		showHeightmap = settings["shooting"].get("showHeightmap", true).asBool();
+		forceDisplay = settings["shoting"].get("forceDisplay", false).asBool();
     }
 }
 
@@ -309,6 +315,7 @@ void ofApp::saveGui() {
     settings["scene"]["near"] = near;
     settings["scene"]["far"]  = far;
     settings["scene"]["isDisplayIr"] = isDisplayIr;
+	settings["scene"]["showScene"] = showScene;
     
     // disc
     settings["disc"]["origin"]["kinect"][0] = kOrigin.x;
@@ -363,6 +370,8 @@ void ofApp::saveGui() {
     settings["shooting"]["hudOrigin"][1] = hudOrigin.y;
     settings["shooting"]["enableTimer"] = timer.isEnabled();
     settings["shooting"]["showOverlay"] = showOverlay;
+	settings["shooting"]["showHeightmap"] = showHeightmap;
+	settings["shooting"]["forceDisplay"] = forceDisplay;
     
     settings.save("settings.json");
 	
@@ -376,7 +385,7 @@ void ofApp::sendDmx() {
 }
 
 void ofApp::enableLight() {
-    isPreviewLight = true;
+	isPreviewLight = true;
     sendDmx();
 }
 
@@ -388,11 +397,11 @@ void ofApp::disableLight() {
 }
 
 void ofApp::doBeforeShoot() {
-    enableLight();
+//    enableLight();
 }
 
 void ofApp::doAfterShoot() {
-    disableLight();
+//    disableLight();
     timer.reset();
 }
 
@@ -471,36 +480,39 @@ void ofApp::update(){
 }
 
 void ofApp::updateScene() {
-    focus.set(kinect.getFocus());
-    
-    
-    int w = DEPTH_WIDTH;
-    int h = DEPTH_HEIGHT;
-    int x, y, offset;
-    float value, invalid, dist;
-    
-    for (y = 0; y < h; y++) {
-        for (x = 0; x < w; x++) {
-            
-            dist = kinect.getDistanceAt(x, y);
-            offset = (y * w + x) * 3;
-            
-            if(near < dist && dist < far) {
-                value = ofMap(dist, far, near, 0.0f, 1.0f, true);
-                invalid = 0.0f;
-            } else {
-                value = 0.0f;
-                invalid = 1.0f;
-            }
-            
-            depthPixels[offset    ] = value;
-            depthPixels[offset + 1] = invalid;
-            depthPixels[offset + 2] = 0.0;
-        }
-    }
-    
-    depthPixels.mirror(false, true);
-    depthImage.setFromPixels(depthPixels);
+	
+	if (showScene) {
+		focus.set(kinect.getFocus());
+		
+		
+		int w = DEPTH_WIDTH;
+		int h = DEPTH_HEIGHT;
+		int x, y, offset;
+		float value, invalid, dist;
+		
+		for (y = 0; y < h; y++) {
+			for (x = 0; x < w; x++) {
+				
+				dist = kinect.getDistanceAt(x, y);
+				offset = (y * w + x) * 3;
+				
+				if(near < dist && dist < far) {
+					value = ofMap(dist, far, near, 0.0f, 1.0f, true);
+					invalid = 0.0f;
+				} else {
+					value = 0.0f;
+					invalid = 1.0f;
+				}
+				
+				depthPixels[offset    ] = value;
+				depthPixels[offset + 1] = invalid;
+				depthPixels[offset + 2] = 0.0;
+			}
+		}
+		
+		depthPixels.mirror(false, true);
+		depthImage.setFromPixels(depthPixels);
+	}
 }
 
 
@@ -718,7 +730,7 @@ void ofApp::drawShooting() {
         ofPushMatrix();
         
         
-        if (irTex.isAllocated() && !isPreviewLight) {
+        if ((irTex.isAllocated() && !isPreviewLight) || forceDisplay) {
             
             ofDrawBitmapString("CURRENT FRAME=" + ofToString(currentFrame), hudOrigin);
             int step = 1;
@@ -759,7 +771,8 @@ void ofApp::drawShooting() {
             heightmapShader.setUniform1f("tolerance", tolerance);
             
 //            heightmapShader.setUniformi
-            heightmapShader.setUniform1i("showOverlay", showOverlay ? 1 : 0);
+			heightmapShader.setUniform1i("showOverlay", showOverlay ? 1 : 0);
+			heightmapShader.setUniform1i("showHeightmap", showHeightmap ? 1 : 0);
             heightmapShader.setUniformTexture("overlay", overlayImage.getTexture(), 2);
             
 //            heightmapShader.setUniformTexture("depth", depthImage, 0);
@@ -808,11 +821,38 @@ void ofApp::drawShooting() {
             }
             
             // draw angle
-            float rad = heightmapRotation;
-            ofVec2f rotOrigin = getProjFromDisc(cos(rad) * 30, sin(rad) * 30);
-            ofSetColor(255);
-            ofDrawCircle(rotOrigin, 2);
-            
+			{
+				float rad = heightmapRotation;
+				ofVec2f rotOrigin = getProjFromDisc(cos(rad) * 10, sin(rad) * 10);
+				ofVec2f rotOrigin2 = getProjFromDisc(cos(rad) * 30, sin(rad) * 30);
+				ofSetColor(255);
+				ofDrawLine(rotOrigin, rotOrigin2);
+			}
+			
+			{
+				float rad = heightmapRotation + PI;
+				ofVec2f rotOrigin = getProjFromDisc(cos(rad) * 10, sin(rad) * 10);
+				ofVec2f rotOrigin2 = getProjFromDisc(cos(rad) * 30, sin(rad) * 30);
+				ofSetColor(255);
+				ofDrawLine(rotOrigin, rotOrigin2);
+			}
+			
+			// draw circle
+			ofSetColor(255);
+			ofNoFill();
+			
+			ofVec2f prev = getProjFromDisc(ofVec2f(30, 0));
+			ofVec2f curt;
+			for (int i = 1; i <= 60; i++) {
+				float angle = (float)(i / 60.0) * 2 * PI;
+				curt.set(getProjFromDisc(cos(angle) * 30, sin(angle) * 30));
+				ofDrawLine(prev, curt);
+				prev.set(curt);
+			}
+			ofFill();
+
+			
+			
             // draw hud
             ofSetColor(255);
             hud.draw(hudOrigin);
@@ -829,48 +869,50 @@ void ofApp::drawShooting() {
 }
 
 void ofApp::drawScene() {
-    //    view3d.begin();
+	
+	if (showScene) {
     
-    ofBackground(0);
-    ofSetColor(255);
-    
-    ofEnableDepthTest();
-    camera.begin();
-    {
-        ofDrawAxis(200);
-        
-        ofSetColor(255);
-        
-        pointShader.begin();
-        pointShader.setUniform2f("resolution", DEPTH_WIDTH, DEPTH_HEIGHT);
-        pointShader.setUniform1f("near", near);
-        pointShader.setUniform1f("far", far);
-        pointShader.setUniform2f("focus", focus.x, focus.y);
-        pointShader.setUniformTexture("depth", depthImage, 0);
-        pointShader.setUniformTexture("irTex", irTex, 1);
-        pointShader.setUniform1f("discMaskThreshold", discMaskThreshold);
-        depthPointCloud.draw();
-        pointShader.end();
-        
-        ofSetColor(255);
-        ofDrawCircle(wOrigin, 0.3);
-        
-        ofSetColor(255, 0, 0);
-        ofDrawCircle(wAxisX, 0.3);
-        ofDrawLine(discMat * ofVec3f(), discMat * ofVec3f(1, 0, 0));
-        
-        ofSetColor(0, 255, 0);
-        ofDrawCircle(wAxisY, 0.3);
-        ofDrawLine(discMat * ofVec3f(), discMat * ofVec3f(0, 1, 0));
-        
-        ofSetColor(0, 0, 255);
-        ofDrawLine(discMat * ofVec3f(), discMat * ofVec3f(0, 0, 1));
-    }
-    
-    ofSetColor(255);
-    
-    camera.end();
-    ofDisableDepthTest();
+		ofBackground(0);
+		ofSetColor(255);
+		
+		ofEnableDepthTest();
+		camera.begin();
+		{
+			ofDrawAxis(200);
+			
+			ofSetColor(255);
+			
+			pointShader.begin();
+			pointShader.setUniform2f("resolution", DEPTH_WIDTH, DEPTH_HEIGHT);
+			pointShader.setUniform1f("near", near);
+			pointShader.setUniform1f("far", far);
+			pointShader.setUniform2f("focus", focus.x, focus.y);
+			pointShader.setUniformTexture("depth", depthImage, 0);
+			pointShader.setUniformTexture("irTex", irTex, 1);
+			pointShader.setUniform1f("discMaskThreshold", discMaskThreshold);
+			depthPointCloud.draw();
+			pointShader.end();
+			
+			ofSetColor(255);
+			ofDrawCircle(wOrigin, 0.3);
+			
+			ofSetColor(255, 0, 0);
+			ofDrawCircle(wAxisX, 0.3);
+			ofDrawLine(discMat * ofVec3f(), discMat * ofVec3f(1, 0, 0));
+			
+			ofSetColor(0, 255, 0);
+			ofDrawCircle(wAxisY, 0.3);
+			ofDrawLine(discMat * ofVec3f(), discMat * ofVec3f(0, 1, 0));
+			
+			ofSetColor(0, 0, 255);
+			ofDrawLine(discMat * ofVec3f(), discMat * ofVec3f(0, 0, 1));
+		}
+		
+		ofSetColor(255);
+		
+		camera.end();
+		ofDisableDepthTest();
+	}
 }
 
 //--------------------------------------------------------------
@@ -903,11 +945,11 @@ void ofApp::loadHeightmap() {
         int x, y;
         
         for (int i = 0, len = HEIGHTMAP_WIDTH * HEIGHTMAP_WIDTH; i < len; i++) {
-            heightmapU8Pixels[i] = (unsigned char)(heightmapPixels[i] * 255);
+            heightmapU8Pixels[i] = (unsigned char)(heightmapPixels[i] * 255 * 80);
         }
         
         heightmapCvImage.setFromPixels(heightmapU8Pixels);
-        heightmapCvImage.threshold(1);
+        heightmapCvImage.threshold(0);
         contourFinder.findContours(heightmapCvImage, 2, HEIGHTMAP_WIDTH * HEIGHTMAP_WIDTH, 20, true);
     }
     
@@ -987,6 +1029,10 @@ void ofApp::keyPressed(int key){
             case 'o':
                 showOverlay = !showOverlay;
                 break;
+				
+			case 'h':
+				showHeightmap = !showHeightmap;
+				break;
                 
             case 'n':
                 currentFrame += 1;
@@ -996,6 +1042,10 @@ void ofApp::keyPressed(int key){
                 currentFrame -= 1;
                 loadHeightmap();
                 break;
+				
+			case 'm':
+				forceDisplay = !forceDisplay;
+				break;
         }
     }
     
