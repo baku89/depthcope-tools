@@ -12,12 +12,12 @@ A set of tools for 'depthcope', which I tried 3d rotoscoping. This system uses a
  
  - openFrameworks v0.9.4 or newer
  - the environemnt which supports [ofxMultiKinectV2](https://github.com/hanasaan/ofxMultiKinectV2). I've checked the following environments work well.
-	 * MacBook Pro Mid 2012 (16GB RAM, 2.7GHz i7)
+	* MacBook Pro Mid 2012 (16GB RAM, 2.7GHz i7)
 	* Mac Pro Late 2013 (64GB RAM, 8 cores)
 
 ## How to build
  
- This repo is a set of oF project, so you'll need to clone to one deeper directory from oF installed path. For example, `(OF_PATH)/apps/(THIS_REPO)`
+This repo is a set of oF project, so you'll need to clone to one deeper directory from oF installed path. For example, `(OF_PATH)/apps/(THIS_REPO)`
 
 ## Dependencies
 
