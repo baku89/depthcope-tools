@@ -1,0 +1,37 @@
+# Shooting System for 'depthcope'
+
+![](./thumb.jpg)
+
+A set of tools for 'depthcope', which I tried 3d rotoscoping. This system uses a pair of Kinect and projector, and measures a height of each points of surface from a reference plane. Then comparing them to 'height map' of a target form, this project the point clouds of colours which represents whether the point is higher(red) or lower(blue) than the target height. If the difference between a target height and a measured height is less than specified torelance, it's represented as green. When all dots on the surface turn into green, the form on the plane is almost accurate comparing to target form.
+
+[depthcope](http://baku89.com/work/depthcope)
+
+ As result it works like 'human-powered 3d printer'.
+ 
+ ## Environments
+ 
+ - openFrameworks v0.9.4 or newer
+ - the environemnt which supports [ofxMultiKinectV2](https://github.com/hanasaan/ofxMultiKinectV2)
+	 * MacBook Pro Mid 2012 (16GB RAM, 
+	* Mac Pro 
+
+ ## How to build
+ 
+ This repo is a set of oF project, so you'll need to clone to one deeper directory from oF installed path. For example, `(OF_PATH)/apps/(THIS_REPO)`
+
+## Dependencies
+
+Please reference the each repo to setup.
+
+- [ofxMultiKinectV2](https://github.com/hanasaan/ofxMultiKinectV2)
+- [ofxTurboJpeg](https://github.com/armadillu/ofxTurboJpeg)
+- [ofxDatGui](https://github.com/braitsch/ofxDatGui)
+- [ofxSecondWindow](https://github.com/genekogan/ofxSecondWindow)
+- [ofxCv](https://github.com/kylemcdonald/ofxCv)
+- [ofxofxKinectProjectorToolkitV2](https://github.com/genekogan/ofxKinectProjectorToolkitV2)
+- [ofxJSON](https://github.com/jefftimesten/ofxJSON)
+- [ofxGrabCam](https://github.com/elliotwoods/ofxGrabCam)
+ 
+ ## License
+
+ This repository is published under a MIT License. See the included LICENSE file.
