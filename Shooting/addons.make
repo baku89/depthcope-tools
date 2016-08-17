@@ -1,7 +1,6 @@
 ofxCv
 ofxDatGui
 ofxDmx
-ofxGameCamera
 ofxGrabCam
 ofxJSON
 ofxKinectProjectorToolkitV2
