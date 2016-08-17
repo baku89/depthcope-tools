@@ -11,15 +11,21 @@ A set of tools for 'depthcope', which I tried 3d rotoscoping. This system uses a
 ## Environments
  
  - openFrameworks v0.9.4 or newer
- - the environemnt which supports [ofxMultiKinectV2](https://github.com/hanasaan/ofxMultiKinectV2)
-	 * MacBook Pro Mid 2012 (16GB RAM, 
-	* Mac Pro 
+ - the environemnt which supports [ofxMultiKinectV2](https://github.com/hanasaan/ofxMultiKinectV2). I've checked the following environments work well.
+	 * MacBook Pro Mid 2012 (16GB RAM, 2.7GHz i7)
+	* Mac Pro Late 2013 (64GB RAM, 8 cores)
 
 ## How to build
  
  This repo is a set of oF project, so you'll need to clone to one deeper directory from oF installed path. For example, `(OF_PATH)/apps/(THIS_REPO)`
 
 ## Dependencies
+
+### Softwares
+
+- [Dragonframe](http://www.dragonframe.com/)
+
+### oF Addons
 
 Please reference the each repo to setup.
 
@@ -31,6 +37,10 @@ Please reference the each repo to setup.
 - [ofxofxKinectProjectorToolkitV2](https://github.com/genekogan/ofxKinectProjectorToolkitV2)
 - [ofxJSON](https://github.com/jefftimesten/ofxJSON)
 - [ofxGrabCam](https://github.com/elliotwoods/ofxGrabCam)
+ 
+ ### Others
+ 
+ - [dragonframe-osc](https://github.com/baku89/dragonframe-osc): used to detect the events of Dragonframe to sync frame to shoot
  
  ## License
 
