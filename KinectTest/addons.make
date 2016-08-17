@@ -1,3 +1,0 @@
-ofxFX
-ofxGrabCam
-ofxKinect
