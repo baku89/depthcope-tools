@@ -2,7 +2,7 @@
 
 ![](./thumb.jpg)
 
-A set of tools for 'depthcope', which I tried 3d rotoscoping. This system uses a pair of Kinect and projector, and measures a height of each points of surface from a reference plane. Then comparing them to 'height map' of a target form, this project the point clouds of colours which represents whether the point is higher(red) or lower(blue) than the target height. If the difference between a target height and a measured height is less than specified torelance, it's represented as green. When all dots on the surface turn into green, the form on the plane is almost accurate comparing to target form.
+A set of tools for 'depthcope', which I tried 3d rotoscoping. This system uses a pair of Kinect and projector, and measures a height of each points of surface from a reference plane. Then comparing them to 'height map' of a target form, this app projects the point clouds of colours which represents whether the point is higher(red) or lower(blue) than the target height. If the difference between a target height and a measured height is less than specified torelance, it's represented as green. When all dots on the surface turn into green, the form on the plane is almost accurate comparing to target form.
 
 [depthcope](http://baku89.com/work/depthcope)
 
